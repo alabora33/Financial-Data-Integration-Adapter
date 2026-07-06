@@ -1,0 +1,26 @@
+cat > .gitignore << 'EOF'
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Rust
+/rust_engine/target/
+**/*.rs.bk
+
+# Ortam ve gizli bilgiler
+.env
+*.log
+
+# Veritabanı / veri
+*.sqlite3
+/data/
+
+# IDE
+.vscode/
+.idea/
+.DS_Store
+EOF
