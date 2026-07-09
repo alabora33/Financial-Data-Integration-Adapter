@@ -1,0 +1,19 @@
+# Rust derleme çıktıları (büyük, build context'e girmesin)
+rust_engine/target/
+
+# Python sanal ortamlar
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+
+# Büyük veri dosyaları
+sample_data/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/

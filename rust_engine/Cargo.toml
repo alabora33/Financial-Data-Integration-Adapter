@@ -3,5 +3,16 @@ name = "rust_engine"
 version = "0.1.0"
 edition = "2021"
 
+# lib → Python'a açılan .so (PyO3)
+[lib]
+name = "rust_validator"
+crate-type = ["cdylib"]
+
+# bin → mevcut CSV test binary'si
+[[bin]]
+name = "rust_engine"
+path = "src/main.rs"
+
 [dependencies]
 chrono = "0.4"
+pyo3 = { version = "0.21", features = ["extension-module"] }
