@@ -148,6 +148,23 @@ def profiling_view(request):
     else:
         sigorta_dagilim = []
 
+    # Kategorik alan analizi — unique_count + most_frequent (madde 10)
+    KATEGORIK_ALANLAR = [
+        "customer_type",
+        "loan_status_code",
+        "customer_district_code",
+        "customer_province_code",
+    ]
+    kategorik_analiz = {}
+    for alan in KATEGORIK_ALANLAR:
+        dagilim = list(qs.values(alan).annotate(sayi=Count("id")).order_by("-sayi"))
+        if dagilim:
+            kategorik_analiz[alan] = {
+                "unique_count": len(dagilim),
+                "most_frequent": dagilim[0].get(alan),
+                "most_frequent_count": dagilim[0]["sayi"],
+            }
+
     son_sync = (
         SyncLog.objects.filter(tenant__bank_code=tenant_id, loan_type=loan_type, status="SUCCESS")
         .order_by("-sync_started_at")
@@ -180,6 +197,7 @@ def profiling_view(request):
             },
             "durum_dagilimi": durum_dagilim,
             "sigorta_dagilimi": sigorta_dagilim,
+            "kategorik_analiz": kategorik_analiz,
             "son_senkronizasyon": (
                 {
                     "tarih": son_sync.sync_started_at,
