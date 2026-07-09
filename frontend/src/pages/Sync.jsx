@@ -58,25 +58,52 @@ export default function Sync() {
       {result && (
         <>
           <div className="alert alert-success">
-            Senkronizasyon tamamlandı — {result.rows_fetched?.toLocaleString()} satır işlendi.
+            Senkronizasyon tamamlandı —{' '}
+            <strong>{result.kredi?.rows_fetched?.toLocaleString() ?? 0}</strong> kredi,{' '}
+            <strong>{result.odeme_plani?.rows_fetched?.toLocaleString() ?? 0}</strong> ödeme planı satırı işlendi.
           </div>
-          <div className="stat-grid">
+
+          {/* Kredi istatistikleri */}
+          <div className="card-title" style={{ marginBottom: 8, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.5px', color: 'var(--muted)' }}>Kredi Kayıtları</div>
+          <div className="stat-grid" style={{ marginBottom: 16 }}>
             <div className="stat-card">
               <div className="stat-label">Toplam Çekilen</div>
-              <div className="stat-value">{result.rows_fetched?.toLocaleString()}</div>
+              <div className="stat-value">{result.kredi?.rows_fetched?.toLocaleString() ?? 0}</div>
               <div className="stat-sub">{result.bank_code} · {result.loan_type}</div>
             </div>
             <div className="stat-card green">
               <div className="stat-label">Geçerli Kayıt</div>
-              <div className="stat-value">{result.rows_valid?.toLocaleString()}</div>
+              <div className="stat-value">{result.kredi?.rows_valid?.toLocaleString() ?? 0}</div>
             </div>
             <div className="stat-card red">
               <div className="stat-label">Hatalı Kayıt</div>
-              <div className="stat-value">{result.rows_invalid?.toLocaleString()}</div>
+              <div className="stat-value">{result.kredi?.rows_invalid?.toLocaleString() ?? 0}</div>
             </div>
             <div className="stat-card blue">
               <div className="stat-label">Önceki Silinen</div>
-              <div className="stat-value">{result.rows_deleted_before_sync?.toLocaleString()}</div>
+              <div className="stat-value">{result.kredi?.rows_deleted_before_sync?.toLocaleString() ?? 0}</div>
+            </div>
+          </div>
+
+          {/* Ödeme planı istatistikleri */}
+          <div className="card-title" style={{ marginBottom: 8, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.5px', color: 'var(--muted)' }}>Ödeme Planları</div>
+          <div className="stat-grid">
+            <div className="stat-card">
+              <div className="stat-label">Toplam Çekilen</div>
+              <div className="stat-value">{result.odeme_plani?.rows_fetched?.toLocaleString() ?? 0}</div>
+            </div>
+            <div className="stat-card green">
+              <div className="stat-label">Geçerli Plan</div>
+              <div className="stat-value">{result.odeme_plani?.rows_valid?.toLocaleString() ?? 0}</div>
+            </div>
+            <div className="stat-card red">
+              <div className="stat-label">Alan Hatası</div>
+              <div className="stat-value">{result.odeme_plani?.rows_invalid_field?.toLocaleString() ?? 0}</div>
+            </div>
+            <div className="stat-card" style={{ borderLeftColor: '#f59e0b' }}>
+              <div className="stat-label">Çapraz Hata</div>
+              <div className="stat-value">{result.odeme_plani?.rows_invalid_cross?.toLocaleString() ?? 0}</div>
+              <div className="stat-sub">Kredisi olmayan plan</div>
             </div>
           </div>
         </>
