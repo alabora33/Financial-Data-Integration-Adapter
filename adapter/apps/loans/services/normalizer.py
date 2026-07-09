@@ -3,6 +3,52 @@ from decimal import Decimal, InvalidOperation
 from typing import Optional
 
 
+# ── Kategori haritaları ───────────────────────────────────────────────────────
+# Banka farklı temsiller gönderebilir; hepsini tek standart koda indirger.
+
+MUSTERI_TIPI: dict[str, str] = {
+    # Bireysel
+    "I": "BIREYSEL", "i": "BIREYSEL",
+    "BIREYSEL": "BIREYSEL", "INDIVIDUAL": "BIREYSEL", "RETAIL": "BIREYSEL",
+    # Kurumsal
+    "C": "KURUMSAL", "c": "KURUMSAL",
+    "KURUMSAL": "KURUMSAL", "CORPORATE": "KURUMSAL", "COMMERCIAL": "KURUMSAL",
+}
+
+KREDI_DURUMU: dict[str, str] = {
+    # Aktif
+    "A": "AKTIF", "a": "AKTIF",
+    "AKTIF": "AKTIF", "ACTIVE": "AKTIF", "AÇIK": "AKTIF", "OPEN": "AKTIF",
+    # Kapalı
+    "K": "KAPALI", "k": "KAPALI",
+    "KAPALI": "KAPALI", "CLOSED": "KAPALI",
+    # Gecikme
+    "N": "GECIKME", "n": "GECIKME",
+    "GECIKME": "GECIKME", "DELINQUENT": "GECIKME", "NPL": "GECIKME",
+}
+
+TAKSIT_DURUMU: dict[str, str] = {
+    # Açık (ödenmemiş)
+    "A": "ACIK", "a": "ACIK",
+    "ACIK": "ACIK", "AÇIK": "ACIK", "OPEN": "ACIK",
+    # Kapalı (ödenmiş)
+    "K": "KAPALI", "k": "KAPALI",
+    "KAPALI": "KAPALI", "CLOSED": "KAPALI", "PAID": "KAPALI",
+}
+
+
+def parse_category(deger: str, harita: dict[str, str]) -> str:
+    """
+    Ham kategori kodunu standart değere dönüştürür.
+    Haritada yoksa orijinal değeri (büyük harf) döndürür.
+    Örnek: 'K' → 'KAPALI', 'Kapalı' → 'KAPALI', 'CLOSED' → 'KAPALI'
+    """
+    temiz = deger.strip()
+    return harita.get(temiz) or harita.get(temiz.upper()) or temiz.upper()
+
+
+# ── Temel parse fonksiyonları ─────────────────────────────────────────────────
+
 def parse_date(deger: str) -> Optional[date]:
     """YYYYMMDD veya YYYY-MM-DD → Python date. Geçersizse None."""
     if not deger or not deger.strip():
@@ -37,8 +83,8 @@ def normalize_retail_credit(row: dict) -> dict:
     return {
         "loan_account_number":          row.get("loan_account_number", "").strip(),
         "customer_id":                  row.get("customer_id", "").strip(),
-        "customer_type":                row.get("customer_type", "").strip(),
-        "loan_status_code":             row.get("loan_status_code", "").strip(),
+        "customer_type":                parse_category(row.get("customer_type", ""), MUSTERI_TIPI),
+        "loan_status_code":             parse_category(row.get("loan_status_code", ""), KREDI_DURUMU),
         "days_past_due":                parse_int(row.get("days_past_due", "0")),
         "loan_start_date":              parse_date(row.get("loan_start_date", "")),
         "final_maturity_date":          parse_date(row.get("final_maturity_date", "")),
@@ -70,8 +116,8 @@ def normalize_commercial_credit(row: dict) -> dict:
     return {
         "loan_account_number":          row.get("loan_account_number", "").strip(),
         "customer_id":                  row.get("customer_id", "").strip(),
-        "customer_type":                row.get("customer_type", "").strip(),
-        "loan_status_code":             row.get("loan_status_code", "").strip(),
+        "customer_type":                parse_category(row.get("customer_type", ""), MUSTERI_TIPI),
+        "loan_status_code":             parse_category(row.get("loan_status_code", ""), KREDI_DURUMU),
         "days_past_due":                parse_int(row.get("days_past_due", "0")),
         "loan_start_date":              parse_date(row.get("loan_start_date", "")),
         "final_maturity_date":          parse_date(row.get("final_maturity_date", "")),
@@ -120,7 +166,7 @@ def normalize_payment_plan(row: dict) -> dict:
         "interest_component":    parse_decimal(row.get("interest_component", "0")),
         "kkdf_component":        parse_decimal(row.get("kkdf_component", "0")),
         "bsmv_component":        parse_decimal(row.get("bsmv_component", "0")),
-        "installment_status":    row.get("installment_status", "").strip(),
+        "installment_status":    parse_category(row.get("installment_status", ""), TAKSIT_DURUMU),
         "remaining_principal":   parse_decimal(row.get("remaining_principal", "0")),
         "remaining_interest":    parse_decimal(row.get("remaining_interest", "0")),
         "remaining_kkdf":        parse_decimal(row.get("remaining_kkdf", "0")),

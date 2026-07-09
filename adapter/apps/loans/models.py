@@ -33,10 +33,10 @@ class CreditRecord(models.Model):
     loan_type = models.CharField(max_length=20, choices=LOAN_TYPE_CHOICES)
     loan_account_number = models.CharField(max_length=50)
     customer_id = models.CharField(max_length=50)
-    customer_type = models.CharField(max_length=5)          # I=Bireysel, C=Kurumsal
+    customer_type = models.CharField(max_length=15)         # BIREYSEL / KURUMSAL
 
     # --- Kredi durumu ---
-    loan_status_code = models.CharField(max_length=10)
+    loan_status_code = models.CharField(max_length=15)
     days_past_due = models.IntegerField(default=0)
 
     # --- Tarihler ---
@@ -116,7 +116,7 @@ class PaymentPlan(models.Model):
     kkdf_component = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     bsmv_component = models.DecimalField(max_digits=18, decimal_places=2, default=0)
 
-    installment_status = models.CharField(max_length=5)    # A=Açık, K=Kapalı
+    installment_status = models.CharField(max_length=15)   # ACIK / KAPALI
 
     remaining_principal = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     remaining_interest = models.DecimalField(max_digits=18, decimal_places=2, default=0)

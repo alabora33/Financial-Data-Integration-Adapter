@@ -100,7 +100,7 @@ class TestNormalizeRetailCredit:
         sonuc = normalize_retail_credit(retail_gecerli)
         assert sonuc["loan_account_number"] == "LOAN_000001"
         assert sonuc["customer_id"]         == "CUST_00001"
-        assert sonuc["customer_type"]       == "I"
+        assert sonuc["customer_type"]       == "BIREYSEL"   # I → BIREYSEL
 
     def test_tarih_donusumu(self, retail_gecerli):
         sonuc = normalize_retail_credit(retail_gecerli)
@@ -128,6 +128,22 @@ class TestNormalizeRetailCredit:
         sonuc = normalize_retail_credit(retail_gecerli)
         assert sonuc["loan_account_number"] == "LOAN_000001"
 
+    def test_kategori_i_bireysel(self, retail_gecerli):
+        retail_gecerli["customer_type"] = "I"
+        assert normalize_retail_credit(retail_gecerli)["customer_type"] == "BIREYSEL"
+
+    def test_kategori_c_kurumsal(self, retail_gecerli):
+        retail_gecerli["customer_type"] = "C"
+        assert normalize_retail_credit(retail_gecerli)["customer_type"] == "KURUMSAL"
+
+    def test_kategori_kredi_durumu_a_aktif(self, retail_gecerli):
+        retail_gecerli["loan_status_code"] = "A"
+        assert normalize_retail_credit(retail_gecerli)["loan_status_code"] == "AKTIF"
+
+    def test_kategori_kredi_durumu_varyant(self, retail_gecerli):
+        retail_gecerli["loan_status_code"] = "Active"
+        assert normalize_retail_credit(retail_gecerli)["loan_status_code"] == "AKTIF"
+
 
 # ── normalize_payment_plan ────────────────────────────────────────────────────
 
@@ -136,7 +152,7 @@ class TestNormalizePaymentPlan:
     def test_temel_alanlar(self, odeme_plani_gecerli):
         sonuc = normalize_payment_plan(odeme_plani_gecerli)
         assert sonuc["installment_number"]  == 1
-        assert sonuc["installment_status"]  == "K"
+        assert sonuc["installment_status"]  == "KAPALI"   # K → KAPALI
 
     def test_tarih_donusumu(self, odeme_plani_gecerli):
         sonuc = normalize_payment_plan(odeme_plani_gecerli)
