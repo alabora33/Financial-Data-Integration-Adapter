@@ -105,3 +105,38 @@ class TestKorumaEndpointleri:
         payload_b64 += "=" * padding
         payload = json.loads(base64.b64decode(payload_b64))
         assert payload["sub"] == "admin"
+
+    def test_api_key_auth_200(self):
+        """X-API-Key header ile kimlik doğrulama çalışmalı."""
+        resp = client.get(
+            "/api/data?tenant_id=BANK001&loan_type=RETAIL",
+            headers={"X-API-Key": "teamsec-dev-key"},
+        )
+        # 401 DEĞİL — adapter down olsa 503 gelir, ama auth geçmeli
+        assert resp.status_code != 401
+
+    def test_gecersiz_api_key_401(self):
+        """Geçersiz API Key 401 döndürmeli."""
+        resp = client.get(
+            "/api/data?tenant_id=BANK001",
+            headers={"X-API-Key": "yanlis-key-12345"},
+        )
+        assert resp.status_code == 401
+
+    def test_bank001user_baska_tenant_403(self):
+        """bank001user BANK002 verisine erişemez — 403 beklenir."""
+        token = self._token_al(username="bank001user", password="bank001pass")
+        resp = client.get(
+            "/api/data?tenant_id=BANK002&loan_type=RETAIL",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 403
+
+    def test_bank001user_kendi_tenanti_gecerli(self):
+        """bank001user BANK001 verisine erişebilir — 401/403 değil."""
+        token = self._token_al(username="bank001user", password="bank001pass")
+        resp = client.get(
+            "/api/data?tenant_id=BANK001&loan_type=RETAIL",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code not in (401, 403)

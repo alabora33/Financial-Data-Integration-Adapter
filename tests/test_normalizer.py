@@ -11,6 +11,7 @@ from apps.loans.services.normalizer import (
     parse_date,
     parse_decimal,
     parse_int,
+    parse_rate,
     normalize_retail_credit,
     normalize_payment_plan,
 )
@@ -85,6 +86,32 @@ class TestParseInt:
 
     def test_bosluklu(self):
         assert parse_int("  7  ") == 7
+
+
+class TestParseRate:
+    """Faiz oranı dönüşümü — dokümanda açıkça belirtilen 3 format."""
+
+    def test_yuzde_format(self):
+        assert parse_rate("18.5%") == Decimal("18.5")
+
+    def test_yuzde_virgul_ayrac(self):
+        assert parse_rate("18,5%") == Decimal("18.5")
+
+    def test_bps_format(self):
+        assert parse_rate("1850bps") == Decimal("18.5")
+
+    def test_bps_buyuk_harf(self):
+        assert parse_rate("1850BPS") == Decimal("18.5")
+
+    def test_ham_sayi_oldugu_gibi(self):
+        assert parse_rate("45.00") == Decimal("45.00")
+
+    def test_bos_varsayilan_sifir(self):
+        assert parse_rate("") == Decimal("0")
+        assert parse_rate("   ") == Decimal("0")
+
+    def test_gecersiz_deger_varsayilan(self):
+        assert parse_rate("abc") == Decimal("0")
 
 
 class TestNormalizeRetailCredit:
