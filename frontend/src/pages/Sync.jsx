@@ -114,81 +114,91 @@ export default function Sync() {
             </select>
           </div>
           <button className="btn btn-primary" onClick={run} disabled={loading}>
+            {loading && <span className="spinner" style={{width:14,height:14,borderWidth:2}} />}
             {loading ? 'Senkronize ediliyor…' : 'Senkronize Et'}
           </button>
         </div>
+        {loading && (
+          <div style={{marginTop:12,fontSize:12,color:'var(--muted)',display:'flex',alignItems:'center',gap:6}}>
+            <span style={{color:'var(--accent)'}}>&#9432;</span>
+            Senkronizasyon birkaç dakika sürebilir — lütfen sayfayı kapatmayın.
+          </div>
+        )}
       </div>
 
       {error  && <div className="alert alert-error">{error}</div>}
 
-      {result && (
-        <>
-          {result.kredi?.warning ? (
-            <div className="alert alert-error">
-              ⚠️ <strong>Eski veri korundu:</strong> {result.kredi.warning}
+      {result && (() => {
+        const k = result.kredi ?? {}
+        const p = result.odeme_plani ?? {}
+        const hasWarning = k.warning || p.warning
+        return (
+          <div className="sync-result">
+            <div className="sync-result-hd">
+              {hasWarning
+                ? <span style={{color:'var(--amber)'}}>⚠ Senkronizasyon tamamlandı — uyarı var</span>
+                : <><span style={{fontSize:18}}>✓</span> Senkronizasyon başarılı</>}
+              <span style={{marginLeft:'auto',fontSize:12,fontWeight:400,color:'var(--muted)'}}>
+                {result.bank_code} · {result.loan_type}
+              </span>
             </div>
-          ) : (
-            <div className="alert alert-success">
-              Senkronizasyon tamamlandı —{' '}
-              <strong>{result.kredi?.rows_fetched?.toLocaleString() ?? 0}</strong> kredi,{' '}
-              <strong>{result.odeme_plani?.rows_fetched?.toLocaleString() ?? 0}</strong> ödeme planı satırı işlendi.
-            </div>
-          )}
 
-          {}
-          <div className="card-title" style={{ marginBottom: 8, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.5px', color: 'var(--muted)' }}>Kredi Kayıtları</div>
-          <div className="stat-grid" style={{ marginBottom: 16 }}>
-            <div className="stat-card">
-              <div className="stat-label">Toplam Çekilen</div>
-              <div className="stat-value">{result.kredi?.rows_fetched?.toLocaleString() ?? 0}</div>
-              <div className="stat-sub">{result.bank_code} · {result.loan_type}</div>
+            <div className="sync-section">
+              <div className="sync-section-title">Kredi Kayıtları</div>
+              <div className="sync-metrics">
+                <div className="sync-metric">
+                  <span className="sync-metric-val neutral">{k.rows_fetched?.toLocaleString() ?? 0}</span>
+                  <span className="sync-metric-lbl">Çekilen</span>
+                </div>
+                <div className="sync-metric">
+                  <span className="sync-metric-val good">{k.rows_valid?.toLocaleString() ?? 0}</span>
+                  <span className="sync-metric-lbl">Geçerli</span>
+                </div>
+                <div className="sync-metric">
+                  <span className="sync-metric-val bad">{k.rows_invalid?.toLocaleString() ?? 0}</span>
+                  <span className="sync-metric-lbl">Hatalı</span>
+                </div>
+                <div className="sync-metric">
+                  <span className="sync-metric-val neutral">{k.rows_deleted_before_sync?.toLocaleString() ?? 0}</span>
+                  <span className="sync-metric-lbl">Silinen (önceki)</span>
+                </div>
+              </div>
+              {k.warning && <div className="sync-warning">⚠ {k.warning}</div>}
+              {k.ornek_hatalar?.length > 0 && (
+                <div style={{marginTop:10}}>
+                  <div style={{fontSize:11,fontWeight:700,textTransform:'uppercase',letterSpacing:'.4px',color:'var(--red)',marginBottom:6}}>Örnek Hatalar</div>
+                  {k.ornek_hatalar.map((h,i)=>(
+                    <div key={i} style={{fontFamily:'monospace',fontSize:12,color:'var(--muted)',padding:'2px 0',borderBottom:'1px solid #f1f5f9'}}>{h}</div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="stat-card green">
-              <div className="stat-label">Geçerli Kayıt</div>
-              <div className="stat-value">{result.kredi?.rows_valid?.toLocaleString() ?? 0}</div>
-            </div>
-            <div className="stat-card red">
-              <div className="stat-label">Hatalı Kayıt</div>
-              <div className="stat-value">{result.kredi?.rows_invalid?.toLocaleString() ?? 0}</div>
-            </div>
-            <div className="stat-card blue">
-              <div className="stat-label">Önceki Silinen</div>
-              <div className="stat-value">{result.kredi?.rows_deleted_before_sync?.toLocaleString() ?? 0}</div>
+
+            <div className="sync-section">
+              <div className="sync-section-title">Ödeme Planları</div>
+              <div className="sync-metrics">
+                <div className="sync-metric">
+                  <span className="sync-metric-val neutral">{p.rows_fetched?.toLocaleString() ?? 0}</span>
+                  <span className="sync-metric-lbl">Çekilen</span>
+                </div>
+                <div className="sync-metric">
+                  <span className="sync-metric-val good">{p.rows_valid?.toLocaleString() ?? 0}</span>
+                  <span className="sync-metric-lbl">Geçerli</span>
+                </div>
+                <div className="sync-metric">
+                  <span className="sync-metric-val bad">{p.rows_invalid_field?.toLocaleString() ?? 0}</span>
+                  <span className="sync-metric-lbl">Alan Hatası</span>
+                </div>
+                <div className="sync-metric">
+                  <span className="sync-metric-val bad">{p.rows_invalid_cross?.toLocaleString() ?? 0}</span>
+                  <span className="sync-metric-lbl">Çapraz Hata</span>
+                </div>
+              </div>
+              {p.warning && <div className="sync-warning">⚠ {p.warning}</div>}
             </div>
           </div>
-
-          {result.kredi?.ornek_hatalar?.length > 0 && (
-            <div className="card" style={{ borderLeft: '3px solid #ef4444', marginBottom: 16 }}>
-              <div className="card-title" style={{ color: '#ef4444' }}>Örnek Doğrulama Hataları (ilk {result.kredi.ornek_hatalar.length})</div>
-              {result.kredi.ornek_hatalar.map((h, i) => (
-                <div key={i} style={{ fontFamily: 'monospace', fontSize: 12, padding: '3px 0', color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>{h}</div>
-              ))}
-            </div>
-          )}
-
-          {}
-          <div className="card-title" style={{ marginBottom: 8, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.5px', color: 'var(--muted)' }}>Ödeme Planları</div>
-          <div className="stat-grid">
-            <div className="stat-card">
-              <div className="stat-label">Toplam Çekilen</div>
-              <div className="stat-value">{result.odeme_plani?.rows_fetched?.toLocaleString() ?? 0}</div>
-            </div>
-            <div className="stat-card green">
-              <div className="stat-label">Geçerli Plan</div>
-              <div className="stat-value">{result.odeme_plani?.rows_valid?.toLocaleString() ?? 0}</div>
-            </div>
-            <div className="stat-card red">
-              <div className="stat-label">Alan Hatası</div>
-              <div className="stat-value">{result.odeme_plani?.rows_invalid_field?.toLocaleString() ?? 0}</div>
-            </div>
-            <div className="stat-card" style={{ borderLeftColor: '#f59e0b' }}>
-              <div className="stat-label">Çapraz Hata</div>
-              <div className="stat-value">{result.odeme_plani?.rows_invalid_cross?.toLocaleString() ?? 0}</div>
-              <div className="stat-sub">Kredisi olmayan plan</div>
-            </div>
-          </div>
-        </>
-      )}
+        )
+      })()}
     </div>
   )
 }

@@ -22,6 +22,12 @@ venv/
 /external_bank/bank_data/*.json
 /external_bank/bank_data/*.jsonl
 
+# Kayıtlı kullanıcılar — container içinde kalmalı, repoda olmamalı
+/api/users.json
+
+# Kayıtlı kullanıcılar (hassas veri)
+/api/users.json
+
 # IDE
 .vscode/
 .idea/

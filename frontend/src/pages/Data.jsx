@@ -89,10 +89,27 @@ export default function Data() {
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      {loading && !result && <div className="loading">Yükleniyor…</div>}
+      {loading && !result && (
+        <div className="loading"><div className="spinner"/><span>Veriler yükleniyor…</span></div>
+      )}
+
+      {!loading && !result && !error && (
+        <div className="loading" style={{color:'var(--muted-2)'}}>
+          <svg width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" style={{opacity:.35}}>
+            <rect x="3" y="3" width="18" height="18" rx="2"/>
+            <path d="M3 9h18M3 15h18M9 3v18"/>
+          </svg>
+          <span>Banka ve kredi tipini seçip <strong>Getir</strong>'e basın.</span>
+        </div>
+      )}
 
       {result && (
-        <div className="card" style={{ padding: 0 }}>
+        <div className="card" style={{ padding: 0, position:'relative' }}>
+          {loading && (
+            <div style={{position:'absolute',inset:0,background:'rgba(255,255,255,.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:2,borderRadius:'var(--r)'}}>
+              <div className="spinner"/>
+            </div>
+          )}
           <div className="tbl-meta">
             <span>Toplam <strong>{result.total?.toLocaleString()}</strong> kayıt</span>
             <span>Sayfa {page} / {result.pages?.toLocaleString()}</span>

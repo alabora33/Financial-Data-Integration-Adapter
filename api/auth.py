@@ -1,13 +1,17 @@
 """
 JWT tabanlı + API Key kimlik doğrulama.
 
-İki yöntem desteklenir:
+Üç yol desteklenir:
   1. Bearer JWT  → POST /auth/token'dan alınan token
   2. API Key     → X-API-Key header (ortam değişkeni ile yönetilir)
+  3. Kullanıcı kaydı → POST /auth/register
 """
 
+import json
 import os
+import re
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 
 from fastapi import Depends, HTTPException, Security, status
@@ -57,13 +61,65 @@ DEMO_USERS = {
     },
 }
 
+# Kayıtlı kullanıcıları kalcı dosyada sakla (api/ klasörü Docker volume ile bağlı)
+USERS_FILE = Path(__file__).parent / "users.json"
+_USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{3,32}$")
+
+
+def _load_registered_users() -> dict:
+    """Kayıtlı kullanıcıları dosyadan yükler. Dosya yoksa boş dict döner."""
+    if not USERS_FILE.exists():
+        return {}
+    try:
+        with open(USERS_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {}
+
+
+def _save_registered_user(username: str, user: dict) -> None:
+    """Yeni kullanıcıyı dosyaya atomik olarak ekler."""
+    users = _load_registered_users()
+    users[username] = user
+    tmp = USERS_FILE.with_suffix(".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(users, f, ensure_ascii=False, indent=2)
+    tmp.replace(USERS_FILE)
+
+
+def register_user(username: str, password: str) -> dict:
+    """
+    Yeni kullanıcı kaydeder.
+    - Kullanıcı adı: 3-32 karakter, [a-zA-Z0-9_]
+    - Şifre: en az 6 karakter
+    - Varsayılan rol: reader, tüm tenant'lara erişim
+    ValueError: kullanıcı adı alındıysa
+    """
+    if not _USERNAME_RE.match(username):
+        raise ValueError("Kullanıcı adı 3-32 karakter olmalı, sadece harf/rakam/alt çizgi.")
+    if len(password) < 6:
+        raise ValueError("Şifre en az 6 karakter olmalıdır.")
+    if username in DEMO_USERS:
+        raise ValueError("Bu kullanıcı adı kullanımda.")
+    if username in _load_registered_users():
+        raise ValueError("Bu kullanıcı adı kullanımda.")
+
+    user = {
+        "username": username,
+        "hashed_password": pwd_context.hash(password),
+        "roles": ["reader"],
+        "allowed_tenants": ["*"],
+    }
+    _save_registered_user(username, user)
+    return user
 
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
 def authenticate_user(username: str, password: str) -> Optional[dict]:
-    user = DEMO_USERS.get(username)
+    """Demo kullanıcıları ve kayıtlı kullanıcılar arasında arar."""
+    user = DEMO_USERS.get(username) or _load_registered_users().get(username)
     if not user or not verify_password(password, user["hashed_password"]):
         return None
     return user
@@ -111,7 +167,7 @@ async def get_current_user(
                 detail="Geçersiz veya süresi dolmuş token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        user = DEMO_USERS.get(username)
+        user = DEMO_USERS.get(username) or _load_registered_users().get(username)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED, detail="Kullanıcı bulunamadı"

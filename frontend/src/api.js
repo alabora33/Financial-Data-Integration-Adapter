@@ -14,6 +14,30 @@ function handle401() {
   window.dispatchEvent(new Event('unauthorized'))
 }
 
+/** FastAPI hata yanıtından okunabilir mesaj çıkar */
+async function parseError(resp) {
+  try {
+    const data = await resp.json()
+    if (data.detail) return String(data.detail)
+    if (data.message) return String(data.message)
+    return JSON.stringify(data)
+  } catch {
+    const text = await resp.text().catch(() => '')
+    if (text) return text
+  }
+  const msgs = {
+    400: 'Geçersiz istek — parametreleri kontrol edin.',
+    401: 'Oturum süresi dolmuş, lütfen tekrar giriş yapın.',
+    403: 'Bu kaynağa erişim yetkiniz yok.',
+    404: 'Veri bulunamadı — önce senkronizasyon yapın.',
+    409: 'Çakışma — kayıt zaten mevcut.',
+    422: 'Geçersiz veri formatı.',
+    500: 'Sunucu hatası — lütfen tekrar deneyin.',
+    503: 'Servis şu an erişilemiyor — Docker servisleri çalışıyor mu?',
+  }
+  return msgs[resp.status] || `Hata (HTTP ${resp.status})`
+}
+
 export async function login(username, password) {
   const body = new URLSearchParams({ username, password })
   const resp = await fetch(`${API_URL}/auth/token`, {
@@ -27,21 +51,28 @@ export async function login(username, password) {
   return data
 }
 
+export async function register(username, password) {
+  const resp = await fetch(`${API_URL}/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  if (!resp.ok) throw new Error(await parseError(resp))
+  return resp.json()
+}
+
 export function logout() {
   localStorage.removeItem('teamsec_token')
 }
 
 export async function triggerSync(tenantId, loanType) {
-  const resp = await fetch(
-    `${API_URL}/api/sync`,
-    {
-      method: 'POST',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenant_id: tenantId, loan_type: loanType }),
-    }
-  )
+  const resp = await fetch(`${API_URL}/api/sync`, {
+    method: 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tenant_id: tenantId, loan_type: loanType }),
+  })
   if (resp.status === 401) { handle401(); throw new Error('UNAUTHORIZED') }
-  if (!resp.ok) throw new Error(await resp.text())
+  if (!resp.ok) throw new Error(await parseError(resp))
   return resp.json()
 }
 
@@ -49,7 +80,7 @@ export async function getData(tenantId, loanType, page = 1, pageSize = 50) {
   const p = new URLSearchParams({ tenant_id: tenantId, loan_type: loanType, page, page_size: pageSize })
   const resp = await fetch(`${API_URL}/api/data?${p}`, { headers: authHeaders() })
   if (resp.status === 401) { handle401(); throw new Error('UNAUTHORIZED') }
-  if (!resp.ok) throw new Error(await resp.text())
+  if (!resp.ok) throw new Error(await parseError(resp))
   return resp.json()
 }
 
@@ -57,7 +88,7 @@ export async function getProfiling(tenantId, loanType) {
   const p = new URLSearchParams({ tenant_id: tenantId, loan_type: loanType })
   const resp = await fetch(`${API_URL}/api/profiling?${p}`, { headers: authHeaders() })
   if (resp.status === 401) { handle401(); throw new Error('UNAUTHORIZED') }
-  if (!resp.ok) throw new Error(await resp.text())
+  if (!resp.ok) throw new Error(await parseError(resp))
   return resp.json()
 }
 
@@ -71,7 +102,7 @@ export async function uploadCSV(tenantId, loanType, dataKind, file) {
     body,
   })
   if (resp.status === 401) { handle401(); throw new Error('UNAUTHORIZED') }
-  if (!resp.ok) throw new Error(await resp.text())
+  if (!resp.ok) throw new Error(await parseError(resp))
   return resp.json()
 }
 
@@ -84,3 +115,4 @@ export function getUsernameFromToken() {
     return ''
   }
 }
+

@@ -6,7 +6,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from auth import authenticate_user, create_access_token, get_current_user
+from auth import authenticate_user, create_access_token, get_current_user, register_user
 
 load_dotenv()
 
@@ -65,6 +65,11 @@ class SyncRequest(BaseModel):
     loan_type: str = "RETAIL"
 
 
+class RegisterRequest(BaseModel):
+    username: str
+    password: str
+
+
 def _check_tenant_access(user: dict, tenant_id: str) -> None:
     """Kullanıcının istenen tenant'a erişim izni olup olmadığını kontrol eder."""
     allowed = user.get("allowed_tenants", ["*"])
@@ -94,6 +99,21 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         )
     token = create_access_token(user["username"])
     return {"access_token": token, "token_type": "bearer"}
+
+
+@app.post("/auth/register", tags=["Auth"], status_code=201)
+async def register(body: RegisterRequest):
+    """
+    Yeni kullanıcı kaydı.
+    - Kullanıcı adı: 3-32 karakter, [a-zA-Z0-9_]
+    - Şifre: en az 6 karakter
+    - Varsayılan rol: **reader** — tüm tenant'ları okuyabilir, sync başlatamaz
+    """
+    try:
+        register_user(body.username, body.password)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    return {"message": "Kayıt başarılı. Giriş yapabilirsiniz."}
 
 
 @app.post("/api/sync", tags=["Senkronizasyon"])

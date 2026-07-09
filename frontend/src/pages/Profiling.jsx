@@ -117,7 +117,16 @@ export default function Profiling() {
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
-      {loading && <div className="loading">Analiz ediliyor…</div>}
+      {loading && <div className="loading"><div className="spinner"/><span>Analiz ediliyor…</span></div>}
+
+      {!loading && !data && !error && (
+        <div className="loading" style={{color:'var(--muted-2)'}}>
+          <svg width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" style={{opacity:.35}}>
+            <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+          </svg>
+          <span>Banka ve kredi tipini seçip <strong>Analiz Et</strong>'e basın.</span>
+        </div>
+      )}
 
       {data && !loading && (
         <>
