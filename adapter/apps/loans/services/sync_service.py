@@ -9,6 +9,10 @@ from .normalizer import normalize_retail_credit, normalize_commercial_credit, no
 
 BANK_BASE_URL = os.environ.get("BANK_BASE_URL", "http://external_bank:8001")
 
+# Her seferinde kaç satır çekileceği — RAM kullanımını sınırlar
+# Örnek: 5000 satır × 30 alan × ~20 byte ≈ 3 MB/chunk
+CHUNK_SIZE = int(os.environ.get("SYNC_CHUNK_SIZE", "5000"))
+
 CREDIT_VALIDATORS = {
     "RETAIL":     validate_retail_credit,
     "COMMERCIAL": validate_commercial_credit,
@@ -19,35 +23,61 @@ CREDIT_NORMALIZERS = {
 }
 
 
-def _fetch(bank_code: str, loan_type: str, data_kind: str) -> list:
-    """external_bank'tan veri çek."""
-    resp = requests.get(
-        f"{BANK_BASE_URL}/data",
-        params={"tenant_id": bank_code, "loan_type": loan_type, "data_kind": data_kind},
-        timeout=120,
-    )
-    resp.raise_for_status()
-    return resp.json().get("data", [])
+def _fetch_all(bank_code: str, loan_type: str, data_kind: str):
+    """
+    Generator: external_bank'tan veriyi CHUNK_SIZE'lık sayfalarda çeker.
+    Toplam veri büyüklüğünden bağımsız olarak bellekte sadece bir sayfa tutulur.
+    Her iterasyonda (chunk_rows, total, pages) döner.
+    """
+    page = 1
+    while True:
+        resp = requests.get(
+            f"{BANK_BASE_URL}/data",
+            params={
+                "tenant_id": bank_code,
+                "loan_type": loan_type,
+                "data_kind": data_kind,
+                "page":      page,
+                "page_size": CHUNK_SIZE,
+            },
+            timeout=120,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+        chunk   = payload.get("data", [])
+        total   = payload.get("total", 0)
+        pages   = payload.get("pages", 1)
+
+        if not chunk:
+            break
+
+        yield chunk, total, pages
+
+        if page >= pages:
+            break
+        page += 1
 
 
 def _sync_credits(tenant, bank_code: str, loan_type: str) -> dict:
     """
-    Kredi kayıtlarını çek → doğrula → normalize et → atomik kaydet.
-    Döner: {rows_fetched, rows_valid, rows_invalid, rows_deleted}
+    Kredi kayıtlarını chunk'lar halinde çek → doğrula → normalize → atomik kaydet.
     """
     validate  = CREDIT_VALIDATORS[loan_type]
     normalize = CREDIT_NORMALIZERS[loan_type]
 
-    rows = _fetch(bank_code, loan_type, "credit")
-    rows_fetched = len(rows)
-    gecerli = []
-    hatali  = 0
+    rows_fetched = 0
+    gecerli      = []
+    hatali       = 0
+    total        = 0
 
-    for row in rows:
-        if validate(row).gecerli:
-            gecerli.append(normalize(row))
-        else:
-            hatali += 1
+    # Tüm chunk'ları önce topla (kredi sayısı küçük: maks ~25K → ~5 MB)
+    for chunk, total, _ in _fetch_all(bank_code, loan_type, "credit"):
+        rows_fetched += len(chunk)
+        for row in chunk:
+            if validate(row).gecerli:
+                gecerli.append(normalize(row))
+            else:
+                hatali += 1
 
     with transaction.atomic():
         silinen, _ = CreditRecord.objects.filter(tenant=tenant, loan_type=loan_type).delete()
@@ -66,58 +96,63 @@ def _sync_credits(tenant, bank_code: str, loan_type: str) -> dict:
 
 def _sync_payment_plans(tenant, bank_code: str, loan_type: str) -> dict:
     """
-    Ödeme planlarını çek → doğrula → cross-file validate → normalize → atomik kaydet.
+    Ödeme planlarını chunk'lar halinde işler — memory-efficient.
+    Her chunk bağımsız olarak doğrulanır ve DB'ye yazılır.
+    Cross-file validation: loan_account_number kredi kayıtlarında bulunmalı.
 
-    Cross-file validation: her ödeme planı satırındaki loan_account_number,
-    yeni senkronize edilen CreditRecord'lardan birinde bulunmalıdır.
-    Bulunamazsa o satır çapraz doğrulama hatası olarak reddedilir.
+    Bellek kullanımı: CHUNK_SIZE × satır_boyutu (~3 MB/chunk)
+    Toplam 269K satır için: ~54 sayfa, hiçbir zaman >3 MB ödeme planı RAM'de
     """
-    rows = _fetch(bank_code, loan_type, "payment_plan")
-    rows_fetched = len(rows)
-
-    # Cross-file validation için kredi hesap numaralarını DB'den çek (tek sorgu)
+    # Cross-file validation için tüm kredi hesap numaralarını tek sorguda çek
     credit_map = {
         rec.loan_account_number: rec
         for rec in CreditRecord.objects.filter(tenant=tenant, loan_type=loan_type)
     }
 
-    gecerli_planlar = []
-    alan_hatali     = 0   # field validation hatası
-    capraz_hatali   = 0   # cross-file validation hatası (kredi bulunamadı)
+    rows_fetched  = 0
+    rows_valid    = 0
+    alan_hatali   = 0
+    capraz_hatali = 0
 
-    for row in rows:
-        # 1. Alan doğrulama
-        if not validate_payment_plan(row).gecerli:
-            alan_hatali += 1
-            continue
-
-        # 2. Cross-file validation: bu loan_account_number kredi kayıtlarında var mı?
-        loan_acc = row.get("loan_account_number", "").strip()
-        credit = credit_map.get(loan_acc)
-        if credit is None:
-            capraz_hatali += 1
-            continue
-
-        gecerli_planlar.append((credit, normalize_payment_plan(row)))
-
-    # 3. Atomik kayıt
     with transaction.atomic():
-        # Eski planları sil (credit FK üzerinden)
+        # Eski ödeme planlarını sil (bir kez)
         PaymentPlan.objects.filter(
             credit__tenant=tenant,
             credit__loan_type=loan_type,
         ).delete()
 
-        PaymentPlan.objects.bulk_create(
-            [PaymentPlan(credit=credit, **veri) for credit, veri in gecerli_planlar],
-            batch_size=500,
-        )
+        # Her chunk'ı bağımsız olarak işle ve DB'ye yaz
+        for chunk, _, _ in _fetch_all(bank_code, loan_type, "payment_plan"):
+            rows_fetched += len(chunk)
+            gecerli_planlar = []
+
+            for row in chunk:
+                # 1. Alan doğrulama
+                if not validate_payment_plan(row).gecerli:
+                    alan_hatali += 1
+                    continue
+
+                # 2. Cross-file validation
+                loan_acc = row.get("loan_account_number", "").strip()
+                credit   = credit_map.get(loan_acc)
+                if credit is None:
+                    capraz_hatali += 1
+                    continue
+
+                gecerli_planlar.append((credit, normalize_payment_plan(row)))
+
+            if gecerli_planlar:
+                PaymentPlan.objects.bulk_create(
+                    [PaymentPlan(credit=credit, **veri) for credit, veri in gecerli_planlar],
+                    batch_size=500,
+                )
+                rows_valid += len(gecerli_planlar)
 
     return {
         "rows_fetched":       rows_fetched,
-        "rows_valid":         len(gecerli_planlar),
+        "rows_valid":         rows_valid,
         "rows_invalid_field": alan_hatali,
-        "rows_invalid_cross": capraz_hatali,   # cross-file validation reddi
+        "rows_invalid_cross": capraz_hatali,
     }
 
 

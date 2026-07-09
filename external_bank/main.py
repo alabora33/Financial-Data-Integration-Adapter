@@ -41,12 +41,27 @@ async def upload_csv(
 
 
 @app.get("/data")
-def get_data(tenant_id: str, loan_type: str, data_kind: str):
-    rows = storage.load_data(tenant_id, loan_type, data_kind)
+def get_data(
+    tenant_id: str,
+    loan_type: str,
+    data_kind: str,
+    page: int = 1,
+    page_size: int = 5000,
+):
+    """
+    Kayıtlı veriyi sayfalı döndürür.
+    page_size varsayılanı 5000 — adapter büyük veri setlerini chunk'lar halinde çeker.
+    """
+    rows, total = storage.load_data_page(tenant_id, loan_type, data_kind, page, page_size)
+    pages = max(1, (total + page_size - 1) // page_size)
     return {
         "tenant_id": tenant_id,
         "loan_type": loan_type,
         "data_kind": data_kind,
+        "total":     total,
+        "page":      page,
+        "page_size": page_size,
+        "pages":     pages,
         "row_count": len(rows),
-        "data": rows,
+        "data":      rows,
     }
