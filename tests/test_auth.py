@@ -166,3 +166,93 @@ class TestKorumaEndpointleri:
                 headers={"X-API-Key": "bank001-key"},
             )
         assert resp.status_code not in (401, 403)
+
+
+class TestRegisterEndpoint:
+
+    def setup_method(self):
+        """Her test öncesi auth modülünü geçici boş bir users.json'a yönlendir."""
+        import tempfile, os
+        import auth as auth_module
+        from pathlib import Path
+
+        self._tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        self._tmp.write(b"{}")
+        self._tmp.close()
+        self._orig_path = auth_module.USERS_FILE
+        auth_module.USERS_FILE = Path(self._tmp.name)
+
+    def teardown_method(self):
+        import os, auth as auth_module
+        auth_module.USERS_FILE = self._orig_path
+        os.unlink(self._tmp.name)
+
+    def test_basarili_kayit_201(self):
+        """Geçerli kullanıcı adı + şifre ile 201 dönmeli."""
+        resp = client.post(
+            "/auth/register",
+            json={"username": "yenikullanici", "password": "gizlisifre"},
+        )
+        assert resp.status_code == 201
+        assert "Kayıt başarılı" in resp.json()["message"]
+
+    def test_kisa_kullanici_adi_409(self):
+        """2 karakterli kullanıcı adı reddedilmeli (min 3)."""
+        resp = client.post(
+            "/auth/register",
+            json={"username": "ab", "password": "gizlisifre"},
+        )
+        assert resp.status_code == 409
+
+    def test_kisa_sifre_409(self):
+        """Şifre 5 karakter — min 6 olmalı."""
+        resp = client.post(
+            "/auth/register",
+            json={"username": "gecerlikullanici", "password": "kisa"},
+        )
+        assert resp.status_code == 409
+
+    def test_gecersiz_karakter_409(self):
+        """Kullanıcı adında boşluk veya özel karakter olmamalı."""
+        resp = client.post(
+            "/auth/register",
+            json={"username": "bos luk", "password": "gizlisifre"},
+        )
+        assert resp.status_code == 409
+
+    def test_demo_kullanici_cakisma_409(self):
+        """Demo kullanıcı adı (admin) alınamalı — 409 beklenir."""
+        resp = client.post(
+            "/auth/register",
+            json={"username": "admin", "password": "farkli_sifre123"},
+        )
+        assert resp.status_code == 409
+
+    def test_kayittan_sonra_giris_yapilabilir(self):
+        """Kayıt olan kullanıcı hemen giriş yapabilmeli."""
+        username = "testgiris_user"
+        password = "sifrem123"
+        client.post("/auth/register", json={"username": username, "password": password})
+
+        resp = client.post(
+            "/auth/token",
+            data={"username": username, "password": password},
+        )
+        assert resp.status_code == 200
+        assert "access_token" in resp.json()
+
+    def test_ayni_kullanici_adi_tekrar_409(self):
+        """Aynı kullanıcı adıyla ikinci kayıt 409 dönmeli."""
+        data = {"username": "tekrar_user", "password": "sifrem123"}
+        client.post("/auth/register", json=data)
+        resp = client.post("/auth/register", json=data)
+        assert resp.status_code == 409
+
+    def test_kayitli_kullanici_yanlis_sifre_401(self):
+        """Yanlış şifre ile giriş 401 dönmeli."""
+        client.post("/auth/register", json={"username": "sifre_test", "password": "dogru123"})
+        resp = client.post(
+            "/auth/token",
+            data={"username": "sifre_test", "password": "yanlis123"},
+        )
+        assert resp.status_code == 401

@@ -79,6 +79,22 @@ curl -H "X-API-Key: teamsec-dev-key" \
 
 API key'ler `.env` dosyasındaki `API_KEYS` değişkeni ile yönetilir.
 
+**Yöntem 3 — Kullanıcı Kaydı:**
+```bash
+# Yeni hesap oluştur
+curl -s -X POST http://localhost:8000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "yenikullanici", "password": "gizlisifre"}'
+
+# Kayıtlı hesapla giriş yap
+TOKEN=$(curl -s -X POST http://localhost:8000/auth/token \
+  -d "username=yenikullanici&password=gizlisifre" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+```
+
+Kayıtlı kullanıcılar **reader** rolüyle tüm tenant'ları görüntleyebilir; sync başlatma ve upload yalnızca **admin** rolündedir.
+Kayıtlar `api/users.json` dosyasında bcrypt hash'li olarak saklanır.
+
 ---
 
 ## API Endpoint'leri
@@ -203,7 +219,7 @@ Validation motoru Rust ile yazılmış (`rust_engine/`), PyO3 köprüsüyle Pyth
 ## Testleri Çalıştır
 
 ```bash
-# Python testleri (117 test, SQLite in-memory)
+# Python testleri (125 test, SQLite in-memory)
 cd adapter && source .venv/bin/activate && cd ..
 python -m pytest tests/ -v
 
