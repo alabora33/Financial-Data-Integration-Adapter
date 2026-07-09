@@ -1,0 +1,60 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-teamsec}
+      POSTGRES_USER: ${POSTGRES_USER:-teamsec}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-teamsec_secret}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-teamsec}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  external_bank:
+    build: ./external_bank
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./external_bank:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+
+  adapter:
+    build: ./adapter
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    volumes:
+      - ./adapter:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    command: >
+      sh -c "python manage.py migrate --no-input &&
+             python manage.py runserver 0.0.0.0:8002"
+
+  api:
+    build: ./api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api:/app
+    depends_on:
+      - adapter
+    env_file:
+      - .env
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:

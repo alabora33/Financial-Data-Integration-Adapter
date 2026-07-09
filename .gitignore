@@ -1,4 +1,3 @@
-cat > .gitignore << 'EOF'
 # Python
 __pycache__/
 *.py[cod]
@@ -19,8 +18,13 @@ venv/
 *.sqlite3
 /data/
 
+# Büyük örnek veri dosyaları
+/sample_data/
+
 # IDE
 .vscode/
 .idea/
 .DS_Store
-EOF/sample_data/
+
+# Docker
+.docker/
