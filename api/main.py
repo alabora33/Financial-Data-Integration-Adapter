@@ -1,7 +1,10 @@
 import os
 import httpx
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends
+from fastapi.security import OAuth2PasswordRequestForm
 from dotenv import load_dotenv
+
+from auth import authenticate_user, create_access_token, get_current_user
 
 load_dotenv()
 
@@ -49,15 +52,29 @@ def health_check():
     return {"status": "ok", "service": "adapter-api", "version": "1.0.0"}
 
 
+@app.post("/auth/token", tags=["Auth"])
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    """
+    JWT token al. Demo: admin/teamsec2024 · readonly/readonly2024
+    """
+    user = authenticate_user(form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Kullanıcı adı veya şifre hatalı",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    token = create_access_token(user["username"])
+    return {"access_token": token, "token_type": "bearer"}
+
+
 @app.post("/api/sync", tags=["Senkronizasyon"])
 async def trigger_sync(
     tenant_id: str = Query(..., description="Banka kodu (örn: BANK001)"),
-    loan_type: str = Query("RETAIL", description="Kredi tipi: RETAIL veya COMMERCIAL"),
+    loan_type: str = Query("RETAIL", description="RETAIL veya COMMERCIAL"),
+    _user: dict = Depends(get_current_user),
 ):
-    """
-    Belirtilen banka ve kredi tipi için senkronizasyon başlatır.
-    external_bank'tan veri çeker, doğrular, normalize eder, PostgreSQL'e kaydeder.
-    """
+    """Senkronizasyon başlatır. JWT token gerektirir."""
     return await _adapter_post(
         "/internal/sync/",
         {"bank_code": tenant_id, "loan_type": loan_type},
@@ -68,12 +85,11 @@ async def trigger_sync(
 async def get_data(
     tenant_id: str = Query(..., description="Banka kodu"),
     loan_type: str = Query("RETAIL", description="RETAIL veya COMMERCIAL"),
-    page: int = Query(1, ge=1, description="Sayfa numarası"),
-    page_size: int = Query(100, ge=1, le=1000, description="Sayfa başına kayıt (maks 1000)"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=1000),
+    _user: dict = Depends(get_current_user),
 ):
-    """
-    Normalize edilmiş kredi kayıtlarını sayfalı döndürür.
-    """
+    """Normalize edilmiş kredi kayıtlarını sayfalı döndürür. JWT token gerektirir."""
     return await _adapter_get(
         "/internal/data/",
         {"tenant_id": tenant_id, "loan_type": loan_type, "page": page, "page_size": page_size},
@@ -84,11 +100,9 @@ async def get_data(
 async def get_profiling(
     tenant_id: str = Query(..., description="Banka kodu"),
     loan_type: str = Query("RETAIL", description="RETAIL veya COMMERCIAL"),
+    _user: dict = Depends(get_current_user),
 ):
-    """
-    Veri kalitesi profil raporu:
-    faiz/tutar istatistikleri, boş alan oranları, kategorik dağılımlar, son sync bilgisi.
-    """
+    """Veri kalitesi profil raporu. JWT token gerektirir."""
     return await _adapter_get(
         "/internal/profiling/",
         {"tenant_id": tenant_id, "loan_type": loan_type},
