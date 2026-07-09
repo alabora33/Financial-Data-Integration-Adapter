@@ -24,8 +24,16 @@ from django.core.management.base import BaseCommand, CommandError
 BANK_URL = os.environ.get("BANK_BASE_URL", "http://external_bank:8001")
 DEFAULT_DIR = "/sample_data/teamsec-interview-data"
 
-# Dosya adı kalıbı: BANK001__RETAIL__credit.csv
+# Dosya adı → yol kalıbı: BANK001__RETAIL__credit.csv
 PATTERN = re.compile(r"^([^_]+)__([^_]+)__([^_]+)\.csv$", re.IGNORECASE)
+
+# Standart isimlendirmeye uymayan bilinen dosyalar için fallback
+BILINEN_DOSYALAR: dict[str, tuple[str, str]] = {
+    "retail_credit_masked.csv":          ("RETAIL",     "credit"),
+    "retail_payment_plan_masked.csv":    ("RETAIL",     "payment_plan"),
+    "commercial_credit_masked.csv":      ("COMMERCIAL", "credit"),
+    "commercial_payment_plan_masked.csv":("COMMERCIAL", "payment_plan"),
+}
 
 
 def _parse_filename(dosya_adi: str):
@@ -97,12 +105,21 @@ class Command(BaseCommand):
             default=0,
             help="Her dosyadan maks satır sayısı (0 = tümü)",
         )
+        parser.add_argument(
+            "--tenant-id",
+            default=None,
+            dest="tenant_id",
+            help="Dosya adındaki tenant'ı geçersiz kıl (örn: BANK002)",
+        )
 
     def handle(self, *args, **options):
-        limit   = options["limit"]
-        tek_dosya = options["file"]
+        limit           = options["limit"]
+        tek_dosya       = options["file"]
+        tenant_override = options["tenant_id"]   # None ise dosya adındaki tenant kullanılır
 
         self.stdout.write(self.style.HTTP_INFO("=== external_bank seed başlıyor ===\n"))
+        if tenant_override:
+            self.stdout.write(f"  → Tenant override: {tenant_override}\n")
 
         if tek_dosya:
             # ── Tek dosya modu ───────────────────────────────────────────────
@@ -113,6 +130,8 @@ class Command(BaseCommand):
                     f"Beklenen: {{TENANT}}_{{LOAN_TYPE}}_{{DATA_KIND}}.csv"
                 )
             tenant_id, loan_type, data_kind = parsed
+            if tenant_override:
+                tenant_id = tenant_override
             _upload(BANK_URL, tek_dosya, tenant_id, loan_type, data_kind,
                     limit, self.stdout, self.style)
         else:
@@ -128,12 +147,25 @@ class Command(BaseCommand):
 
             for dosya_adi in bulunan:
                 parsed = _parse_filename(dosya_adi)
+
                 if not parsed:
-                    self.stdout.write(
-                        self.style.WARNING(f"  ATLANDI '{dosya_adi}' — format uyumsuz (TENANT__LOAN_TYPE__DATA_KIND.csv bekleniyor)")
-                    )
-                    continue
-                tenant_id, loan_type, data_kind = parsed
+                    # Standart format değil — BILINEN_DOSYALAR'a bak
+                    bilinen = BILINEN_DOSYALAR.get(dosya_adi)
+                    if bilinen and tenant_override:
+                        loan_type, data_kind = bilinen
+                        tenant_id = tenant_override
+                    else:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"  ATLANDI '{dosya_adi}' — format uyumsuz "
+                                f"(--tenant-id ile yüklemek için bilinen dosya listesine ekleyin)"
+                            )
+                        )
+                        continue
+                else:
+                    tenant_id, loan_type, data_kind = parsed
+                    if tenant_override:
+                        tenant_id = tenant_override
                 yol = os.path.join(dizin, dosya_adi)
                 _upload(BANK_URL, yol, tenant_id, loan_type, data_kind,
                         limit, self.stdout, self.style)
