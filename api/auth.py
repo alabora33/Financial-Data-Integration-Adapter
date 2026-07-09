@@ -27,16 +27,15 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 # Demo kullanıcılar — production'da Django'nun auth tablosundan gelir
-# Şifre: teamsec2024
 DEMO_USERS = {
     "admin": {
         "username": "admin",
-        "hashed_password": pwd_context.hash("teamsec2024"),
+        "hashed_password": pwd_context.hash("admin"),
         "roles": ["admin"],
     },
     "readonly": {
         "username": "readonly",
-        "hashed_password": pwd_context.hash("readonly2024"),
+        "hashed_password": pwd_context.hash("readonly"),
         "roles": ["reader"],
     },
 }

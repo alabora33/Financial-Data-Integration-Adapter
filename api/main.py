@@ -64,7 +64,7 @@ def health_check():
 @app.post("/auth/token", tags=["Auth"])
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     """
-    JWT token al. Demo: admin/teamsec2024 · readonly/readonly2024
+    JWT token al. Demo: admin/admin · readonly/readonly
     """
     user = authenticate_user(form_data.username, form_data.password)
     if not user:

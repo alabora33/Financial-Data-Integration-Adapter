@@ -34,6 +34,7 @@ services:
       - "8002:8002"
     volumes:
       - ./adapter:/app
+      - ./sample_data:/sample_data:ro
     depends_on:
       db:
         condition: service_healthy
