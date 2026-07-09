@@ -19,6 +19,10 @@ pub fn tarih_gecerli_mi(deger: &str) -> bool {
     if NaiveDate::parse_from_str(temiz, "%Y-%m-%d").is_ok() {
         return true;
     }
+    // Türk nokta formatı: gün.ay.yıl (Python validator ile tutarlılık)
+    if NaiveDate::parse_from_str(temiz, "%d.%m.%Y").is_ok() {
+        return true;
+    }
     false
 }
 
@@ -86,6 +90,19 @@ mod tests {
     fn tarih_tireli_format_gecerli() {
         assert!(tarih_gecerli_mi("2025-03-02"));
         assert!(tarih_gecerli_mi("2026-12-31"));
+    }
+
+    #[test]
+    fn tarih_turkce_nokta_format_gecerli() {
+        // %d.%m.%Y — Python validator ile aynı davranış
+        assert!(tarih_gecerli_mi("15.01.2024"));
+        assert!(tarih_gecerli_mi("01.03.2025"));
+    }
+
+    #[test]
+    fn tarih_turkce_nokta_gecersiz_gun() {
+        assert!(!tarih_gecerli_mi("32.01.2024"));
+        assert!(!tarih_gecerli_mi("00.01.2024"));
     }
 
     #[test]
