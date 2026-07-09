@@ -102,3 +102,28 @@ def normalize_commercial_credit(row: dict) -> dict:
         "risk_class":                   row.get("risk_class", "").strip(),
         "customer_segment":             row.get("customer_segment", "").strip(),
     }
+
+
+# ── Ödeme planı normalizasyonu ────────────────────────────────────────────────
+
+def normalize_payment_plan(row: dict) -> dict:
+    """
+    Ödeme planı satırını Django PaymentPlan model alanlarına uygun tiplere çevirir.
+    `credit` FK alanı hariç — o sync_service tarafından set edilir.
+    """
+    return {
+        "installment_number":    parse_int(row.get("installment_number", "0")),
+        "scheduled_payment_date":parse_date(row.get("scheduled_payment_date", "")),
+        "actual_payment_date":   parse_date(row.get("actual_payment_date", "")),
+        "installment_amount":    parse_decimal(row.get("installment_amount", "0")),
+        "principal_component":   parse_decimal(row.get("principal_component", "0")),
+        "interest_component":    parse_decimal(row.get("interest_component", "0")),
+        "kkdf_component":        parse_decimal(row.get("kkdf_component", "0")),
+        "bsmv_component":        parse_decimal(row.get("bsmv_component", "0")),
+        "installment_status":    row.get("installment_status", "").strip(),
+        "remaining_principal":   parse_decimal(row.get("remaining_principal", "0")),
+        "remaining_interest":    parse_decimal(row.get("remaining_interest", "0")),
+        "remaining_kkdf":        parse_decimal(row.get("remaining_kkdf", "0")),
+        "remaining_bsmv":        parse_decimal(row.get("remaining_bsmv", "0")),
+    }
+
