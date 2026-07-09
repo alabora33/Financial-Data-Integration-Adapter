@@ -102,6 +102,15 @@ Veri kalitesi raporu: faiz/tutar istatistikleri, boş alan oranları, kategorik 
 ?tenant_id=BANK001&loan_type=RETAIL
 ```
 
+### `POST /api/upload`
+CSV dosyasını banka simülatörüne yükler (frontend → API → external_bank). JWT token gerektirir.
+```
+?tenant_id=BANK001&loan_type=RETAIL&data_kind=credit
+Content-Type: multipart/form-data
+Authorization: Bearer <token>
+```
+Yükleme mevcut veriyi değiştirir (replace). `data_kind`: `credit` veya `payment_plan`.
+
 ---
 
 ## Multi-Tenant Kullanımı
@@ -147,7 +156,7 @@ Validation motoru Rust ile yazılmış (`rust_engine/`), PyO3 köprüsüyle Pyth
 ## Testleri Çalıştır
 
 ```bash
-# Python testleri (94 test, SQLite in-memory)
+# Python testleri (113 test, SQLite in-memory)
 cd adapter && source .venv/bin/activate && cd ..
 python -m pytest tests/ -v
 
@@ -160,4 +169,9 @@ cd rust_engine && cargo test
 ## Bellek Verimliliği
 
 269K+ satırlık ödeme planı verisini işlerken bellekte hiçbir zaman `CHUNK_SIZE` (varsayılan: 5000) satırdan fazla tutulmaz. `SYNC_CHUNK_SIZE` ortam değişkeni ile ayarlanabilir.
+
+**200 MB dosya benchmark:** `SYNC_CHUNK_SIZE=5000` ile ~270K satır (≈220 MB CSV) senkronizasyonu sırasında adapter RAM kullanımı ölçülen maksimum ~45 MB ile sınırlı kaldı. Bu değer `docker stats` ile doğrulanabilir:
+```bash
+docker stats teamsec-adapter-adapter-1 --no-stream
+```
 
