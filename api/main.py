@@ -45,7 +45,7 @@ async def _adapter_post(path: str, body: dict) -> dict:
     """adapter/ Django servisine POST isteği atar."""
     async with httpx.AsyncClient() as client:
         try:
-            resp = await client.post(f"{ADAPTER_URL}{path}", json=body, timeout=120.0)
+            resp = await client.post(f"{ADAPTER_URL}{path}", json=body, timeout=600.0)  # sync uzun sürebilir
             resp.raise_for_status()
             return resp.json()
         except httpx.HTTPStatusError as e:
