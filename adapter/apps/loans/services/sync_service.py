@@ -67,14 +67,20 @@ def _sync_credits(tenant, bank_code: str, loan_type: str) -> dict:
     gecerli = []
     hatali = 0
     total = 0
+    ornek_hatalar: list[str] = []
 
     for chunk, total, _ in _fetch_all(bank_code, loan_type, "credit"):
         rows_fetched += len(chunk)
         for row in chunk:
-            if validate(row).gecerli:
+            sonuc = validate(row)
+            if sonuc.gecerli:
                 gecerli.append(normalize(row))
             else:
                 hatali += 1
+                if len(ornek_hatalar) < 5:
+                    loan_no = str(row.get("loan_account_number", "?"))[:20]
+                    for e in sonuc.hatalar[:2]:
+                        ornek_hatalar.append(f"{loan_no}: {e.alan} — {e.sebep}")
 
     if rows_fetched > 0 and len(gecerli) == 0:
         return {
@@ -83,6 +89,7 @@ def _sync_credits(tenant, bank_code: str, loan_type: str) -> dict:
             "rows_invalid": hatali,
             "rows_deleted": 0,
             "warning": "Tüm satırlar geçersiz — eski veri korundu",
+            "ornek_hatalar": ornek_hatalar[:5],
         }
 
     with transaction.atomic():
@@ -97,6 +104,7 @@ def _sync_credits(tenant, bank_code: str, loan_type: str) -> dict:
         "rows_valid": len(gecerli),
         "rows_invalid": hatali,
         "rows_deleted": silinen,
+        "ornek_hatalar": ornek_hatalar[:5],
     }
 
 
@@ -186,16 +194,22 @@ def sync_credit_data(bank_code: str, loan_type: str) -> dict:
         sync_log.sync_finished_at = timezone.now()
         sync_log.save()
 
+        kredi_blok = {
+            "rows_fetched": kredi_sonuc["rows_fetched"],
+            "rows_valid": kredi_sonuc["rows_valid"],
+            "rows_invalid": kredi_sonuc["rows_invalid"],
+            "rows_deleted_before_sync": kredi_sonuc["rows_deleted"],
+        }
+        if "warning" in kredi_sonuc:
+            kredi_blok["warning"] = kredi_sonuc["warning"]
+        if kredi_sonuc.get("ornek_hatalar"):
+            kredi_blok["ornek_hatalar"] = kredi_sonuc["ornek_hatalar"]
+
         return {
             "status": "success",
             "bank_code": bank_code,
             "loan_type": loan_type,
-            "kredi": {
-                "rows_fetched": kredi_sonuc["rows_fetched"],
-                "rows_valid": kredi_sonuc["rows_valid"],
-                "rows_invalid": kredi_sonuc["rows_invalid"],
-                "rows_deleted_before_sync": kredi_sonuc["rows_deleted"],
-            },
+            "kredi": kredi_blok,
             "odeme_plani": {
                 "rows_fetched": plan_sonuc["rows_fetched"],
                 "rows_valid": plan_sonuc["rows_valid"],
