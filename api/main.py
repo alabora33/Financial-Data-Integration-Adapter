@@ -1,6 +1,6 @@
 import os
 import httpx
-from fastapi import FastAPI, HTTPException, Query, Depends
+from fastapi import FastAPI, HTTPException, Query, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
@@ -11,6 +11,7 @@ from auth import authenticate_user, create_access_token, get_current_user
 load_dotenv()
 
 ADAPTER_URL = os.environ.get("ADAPTER_BASE_URL", "http://adapter:8002")
+BANK_URL = os.environ.get("BANK_BASE_URL", "http://external_bank:8001")
 INTERNAL_TOKEN = os.environ.get("INTERNAL_API_TOKEN", "dev-internal-token-change-in-production")
 INTERNAL_HEADERS = {"X-Internal-Token": INTERNAL_TOKEN}
 
@@ -139,3 +140,39 @@ async def get_profiling(
         "/internal/profiling/",
         {"tenant_id": tenant_id, "loan_type": loan_type},
     )
+
+
+@app.post("/api/upload", tags=["Veri Yükleme"])
+async def upload_csv(
+    tenant_id: str = Query(..., description="Banka kodu (ör: BANK001)"),
+    loan_type: str = Query(..., description="RETAIL veya COMMERCIAL"),
+    data_kind: str = Query(..., description="credit veya payment_plan"),
+    file: UploadFile = File(...),
+    _user: dict = Depends(get_current_user),
+):
+    """
+    CSV dosyasını banka simülatörüne yükler. JWT token gerektirir.
+    data_kind: credit | payment_plan
+    """
+    _check_tenant_access(_user, tenant_id)
+    loan_type = loan_type.upper()
+    if loan_type not in ("RETAIL", "COMMERCIAL"):
+        raise HTTPException(status_code=400, detail="loan_type RETAIL veya COMMERCIAL olmalıdır")
+    if data_kind not in ("credit", "payment_plan"):
+        raise HTTPException(status_code=400, detail="data_kind credit veya payment_plan olmalıdır")
+
+    contents = await file.read()
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(
+                f"{BANK_URL}/upload",
+                params={"tenant_id": tenant_id, "loan_type": loan_type, "data_kind": data_kind},
+                files={"file": (file.filename, contents, "text/csv")},
+                timeout=120.0,
+            )
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=503, detail=f"Banka servisine ulaşılamıyor: {e}")

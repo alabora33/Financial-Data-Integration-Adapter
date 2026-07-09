@@ -43,6 +43,12 @@ DEMO_USERS = {
         "roles": ["reader"],
         "allowed_tenants": ["*"],
     },
+    "bank001user": {
+        "username": "bank001user",
+        "hashed_password": pwd_context.hash("bank001pass"),
+        "roles": ["reader"],
+        "allowed_tenants": ["BANK001"],  # Yalnızca BANK001 verisine erişebilir
+    },
 }
 
 
