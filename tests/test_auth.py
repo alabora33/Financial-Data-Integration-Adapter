@@ -2,12 +2,14 @@
 FastAPI auth endpoint testleri.
 JWT token alma, geçersiz giriş ve korumalı endpoint'ler test edilir.
 """
+
 import pytest
 from fastapi.testclient import TestClient
 
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'api'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "api"))
 
 from main import app
 
@@ -89,15 +91,16 @@ class TestKorumaEndpointleri:
             "/api/data?tenant_id=BANK001&loan_type=RETAIL",
             headers={"Authorization": f"Bearer {token}"},
         )
-        # Token geçerliyse 401 olmaz (503 veya 200 olabilir)
+
         assert resp.status_code != 401
 
     def test_jwt_payload_kullanici_adi(self):
         """Token payload'ında sub (username) doğru olmalı."""
         import base64, json
+
         token = self._token_al()
         payload_b64 = token.split(".")[1]
-        # Base64 padding düzelt
+
         padding = 4 - len(payload_b64) % 4
         payload_b64 += "=" * padding
         payload = json.loads(base64.b64decode(payload_b64))

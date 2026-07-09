@@ -2,6 +2,7 @@
 Django DRF endpoint testleri.
 /internal/sync/, /internal/data/, /internal/profiling/ test edilir.
 """
+
 import datetime
 from decimal import Decimal
 from unittest.mock import patch
@@ -12,34 +13,37 @@ from django.test import Client
 
 @pytest.fixture
 def client():
-    return Client()
+    """Dahili token ile yapılandırılmış test client."""
+    c = Client(HTTP_X_INTERNAL_TOKEN="dev-internal-token-change-in-production")
+    return c
 
 
 @pytest.fixture
 def dolu_db(tenant):
     """Birkaç CreditRecord ile dolu DB fixture'ı."""
     from apps.loans.models import CreditRecord
+
     records = []
     for i in range(5):
-        records.append(CreditRecord.objects.create(
-            tenant=tenant,
-            loan_type="RETAIL",
-            loan_account_number=f"LOAN_{i:06d}",
-            customer_id=f"CUST_{i:05d}",
-            customer_type="I",
-            loan_status_code="A",
-            loan_start_date=datetime.date(2025, 1, 1),
-            final_maturity_date=datetime.date(2026, 1, 1),
-            original_loan_amount=Decimal("50000"),
-            outstanding_principal_balance=Decimal("40000"),
-            nominal_interest_rate=Decimal("45.00"),
-            total_interest_amount=Decimal("900"),
-            insurance_included="E",
-        ))
+        records.append(
+            CreditRecord.objects.create(
+                tenant=tenant,
+                loan_type="RETAIL",
+                loan_account_number=f"LOAN_{i :06d}",
+                customer_id=f"CUST_{i :05d}",
+                customer_type="I",
+                loan_status_code="A",
+                loan_start_date=datetime.date(2025, 1, 1),
+                final_maturity_date=datetime.date(2026, 1, 1),
+                original_loan_amount=Decimal("50000"),
+                outstanding_principal_balance=Decimal("40000"),
+                nominal_interest_rate=Decimal("45.00"),
+                total_interest_amount=Decimal("900"),
+                insurance_included="E",
+            )
+        )
     return records
 
-
-# ── Sync endpoint ─────────────────────────────────────────────────────────────
 
 @pytest.mark.django_db
 class TestSyncEndpoint:
@@ -84,8 +88,6 @@ class TestSyncEndpoint:
         assert resp.status_code == 500
 
 
-# ── Data endpoint ─────────────────────────────────────────────────────────────
-
 @pytest.mark.django_db
 class TestDataEndpoint:
 
@@ -106,17 +108,13 @@ class TestDataEndpoint:
         assert len(data["data"]) == 5
 
     def test_sayfalama(self, client, dolu_db):
-        resp = client.get(
-            "/internal/data/?tenant_id=BANK001&loan_type=RETAIL&page=1&page_size=2"
-        )
+        resp = client.get("/internal/data/?tenant_id=BANK001&loan_type=RETAIL&page=1&page_size=2")
         assert resp.status_code == 200
         data = resp.json()
         assert len(data["data"]) == 2
-        assert data["total"]     == 5
-        assert data["pages"]     == 3
+        assert data["total"] == 5
+        assert data["pages"] == 3
 
-
-# ── Profiling endpoint ────────────────────────────────────────────────────────
 
 @pytest.mark.django_db
 class TestProfilingEndpoint:
@@ -126,24 +124,19 @@ class TestProfilingEndpoint:
         assert resp.status_code == 400
 
     def test_kayit_yoksa_404(self, client, tenant):
-        resp = client.get(
-            "/internal/profiling/?tenant_id=BANK001&loan_type=RETAIL"
-        )
+        resp = client.get("/internal/profiling/?tenant_id=BANK001&loan_type=RETAIL")
         assert resp.status_code == 404
 
     def test_profiling_yaniti(self, client, dolu_db):
-        resp = client.get(
-            "/internal/profiling/?tenant_id=BANK001&loan_type=RETAIL"
-        )
+        resp = client.get("/internal/profiling/?tenant_id=BANK001&loan_type=RETAIL")
         assert resp.status_code == 200
         data = resp.json()
 
-        assert data["toplam_kayit"]         == 5
-        assert "faiz_istatistikleri"         in data
-        assert "tutar_istatistikleri"        in data
-        assert "veri_kalitesi"               in data
-        assert "durum_dagilimi"              in data
+        assert data["toplam_kayit"] == 5
+        assert "faiz_istatistikleri" in data
+        assert "tutar_istatistikleri" in data
+        assert "veri_kalitesi" in data
+        assert "durum_dagilimi" in data
 
-        # Faiz kontrolü
         assert float(data["faiz_istatistikleri"]["min"]) == 45.0
         assert float(data["faiz_istatistikleri"]["max"]) == 45.0

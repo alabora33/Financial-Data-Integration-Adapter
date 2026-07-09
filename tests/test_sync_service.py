@@ -3,6 +3,7 @@ Sync service testleri.
 HTTP çağrıları mock'lanır — external_bank çalışmak zorunda değil.
 Cross-file validation mantığı burada test edilir.
 """
+
 import datetime
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
@@ -17,10 +18,10 @@ def _bank_yaniti(rows, total=None, page=1, pages=1):
     total = total or len(rows)
     return MagicMock(
         json=lambda: {
-            "data":      rows,
-            "total":     total,
-            "page":      page,
-            "pages":     pages,
+            "data": rows,
+            "total": total,
+            "page": page,
+            "pages": pages,
             "row_count": len(rows),
         },
         raise_for_status=lambda: None,
@@ -43,8 +44,10 @@ KREDI_SATIRLARI = [
         "outstanding_principal_balance": "38000",
         "nominal_interest_rate": "45.00",
         "total_interest_amount": "900",
-        "kkdf_rate": "15", "kkdf_amount": "135",
-        "bsmv_rate": "10", "bsmv_amount": "90",
+        "kkdf_rate": "15",
+        "kkdf_amount": "135",
+        "bsmv_rate": "10",
+        "bsmv_amount": "90",
         "grace_period_months": "0",
         "installment_frequency": "1",
         "loan_start_date": "20250302",
@@ -83,17 +86,17 @@ class TestSyncCreditData:
     @patch("apps.loans.services.sync_service.requests.get")
     def test_basarili_sync(self, mock_get):
         mock_get.side_effect = [
-            _bank_yaniti(KREDI_SATIRLARI),   # credit çağrısı
-            _bank_yaniti(PLAN_SATIRLARI),    # payment_plan çağrısı
+            _bank_yaniti(KREDI_SATIRLARI),
+            _bank_yaniti(PLAN_SATIRLARI),
         ]
         from apps.loans.services.sync_service import sync_credit_data
+
         sonuc = sync_credit_data("BANK001", "RETAIL")
 
         assert sonuc["status"] == "success"
         assert sonuc["kredi"]["rows_valid"] == 1
         assert sonuc["odeme_plani"]["rows_valid"] == 1
 
-        # DB'de gerçekten kaydedildi mi?
         assert CreditRecord.objects.filter(loan_account_number="LOAN_000001").count() == 1
         assert PaymentPlan.objects.filter(installment_number=1).count() == 1
 
@@ -105,10 +108,11 @@ class TestSyncCreditData:
             _bank_yaniti([]),
         ]
         from apps.loans.services.sync_service import sync_credit_data
+
         sonuc = sync_credit_data("BANK001", "RETAIL")
 
         assert sonuc["kredi"]["rows_invalid"] == 1
-        assert sonuc["kredi"]["rows_valid"]   == 0
+        assert sonuc["kredi"]["rows_valid"] == 0
 
     @patch("apps.loans.services.sync_service.requests.get")
     def test_cross_file_validation_hatasi(self, mock_get):
@@ -118,15 +122,16 @@ class TestSyncCreditData:
         """
         yabanci_plan = {**PLAN_SATIRLARI[0], "loan_account_number": "LOAN_YABANCI"}
         mock_get.side_effect = [
-            _bank_yaniti(KREDI_SATIRLARI),        # credit: LOAN_000001
-            _bank_yaniti([yabanci_plan]),          # payment_plan: LOAN_YABANCI (yok!)
+            _bank_yaniti(KREDI_SATIRLARI),
+            _bank_yaniti([yabanci_plan]),
         ]
         from apps.loans.services.sync_service import sync_credit_data
+
         sonuc = sync_credit_data("BANK001", "RETAIL")
 
         assert sonuc["odeme_plani"]["rows_invalid_cross"] == 1
-        assert sonuc["odeme_plani"]["rows_valid"]         == 0
-        assert PaymentPlan.objects.count()                == 0
+        assert sonuc["odeme_plani"]["rows_valid"] == 0
+        assert PaymentPlan.objects.count() == 0
 
     @patch("apps.loans.services.sync_service.requests.get")
     def test_atomik_replacement_eski_veri_silinir(self, mock_get):
@@ -138,10 +143,10 @@ class TestSyncCreditData:
             _bank_yaniti(PLAN_SATIRLARI),
         ]
         from apps.loans.services.sync_service import sync_credit_data
+
         sync_credit_data("BANK001", "RETAIL")
         sync_credit_data("BANK001", "RETAIL")
 
-        # İki sync sonrası da sadece 1 kredi ve 1 plan olmalı
         assert CreditRecord.objects.filter(tenant__bank_code="BANK001").count() == 1
         assert PaymentPlan.objects.count() == 1
 
@@ -149,9 +154,11 @@ class TestSyncCreditData:
     def test_bank_hatasi_sync_log_failed(self, mock_get):
         """Banka erişilemezse SyncLog FAILED olarak kaydedilir."""
         import requests as req_lib
+
         mock_get.side_effect = req_lib.exceptions.ConnectionError("bağlantı kurulamadı")
 
         from apps.loans.services.sync_service import sync_credit_data
+
         with pytest.raises(req_lib.exceptions.ConnectionError):
             sync_credit_data("BANK001", "RETAIL")
 
@@ -167,6 +174,7 @@ class TestSyncCreditData:
             _bank_yaniti(PLAN_SATIRLARI),
         ]
         from apps.loans.services.sync_service import sync_credit_data
+
         sync_credit_data("BANK999", "RETAIL")
 
         assert Tenant.objects.filter(bank_code="BANK999").exists()

@@ -16,6 +16,7 @@ Kullanım biçimleri:
 4) Yalnızca ilk N satırı yükle (büyük dosyalar için test):
        python manage.py seed_bank --limit 1000
 """
+
 import os
 import re
 import requests
@@ -24,15 +25,13 @@ from django.core.management.base import BaseCommand, CommandError
 BANK_URL = os.environ.get("BANK_BASE_URL", "http://external_bank:8001")
 DEFAULT_DIR = "/sample_data/teamsec-interview-data"
 
-# Dosya adı → yol kalıbı: BANK001__RETAIL__credit.csv
 PATTERN = re.compile(r"^([^_]+)__([^_]+)__([^_]+)\.csv$", re.IGNORECASE)
 
-# Standart isimlendirmeye uymayan bilinen dosyalar için fallback
 BILINEN_DOSYALAR: dict[str, tuple[str, str]] = {
-    "retail_credit_masked.csv":          ("RETAIL",     "credit"),
-    "retail_payment_plan_masked.csv":    ("RETAIL",     "payment_plan"),
-    "commercial_credit_masked.csv":      ("COMMERCIAL", "credit"),
-    "commercial_payment_plan_masked.csv":("COMMERCIAL", "payment_plan"),
+    "retail_credit_masked.csv": ("RETAIL", "credit"),
+    "retail_payment_plan_masked.csv": ("RETAIL", "payment_plan"),
+    "commercial_credit_masked.csv": ("COMMERCIAL", "credit"),
+    "commercial_payment_plan_masked.csv": ("COMMERCIAL", "payment_plan"),
 }
 
 
@@ -58,7 +57,7 @@ def _upload(bank_url, yol, tenant_id, loan_type, data_kind, limit, stdout, style
             satirlar = []
             for i, satir in enumerate(f):
                 satirlar.append(satir)
-                if i >= limit:   # başlık + limit satır
+                if i >= limit:
                     break
         icerik = "".join(satirlar).encode("utf-8")
     else:
@@ -66,7 +65,9 @@ def _upload(bank_url, yol, tenant_id, loan_type, data_kind, limit, stdout, style
             icerik = f.read()
 
     kb = len(icerik) / 1024
-    stdout.write(f"  Yükleniyor: {os.path.basename(yol)} ({kb:.0f} KB) → {tenant_id}/{loan_type}/{data_kind}...")
+    stdout.write(
+        f"  Yükleniyor: {os .path .basename (yol )} ({kb :.0f} KB) → {tenant_id}/{loan_type}/{data_kind}..."
+    )
 
     try:
         resp = requests.post(
@@ -77,7 +78,7 @@ def _upload(bank_url, yol, tenant_id, loan_type, data_kind, limit, stdout, style
         )
         resp.raise_for_status()
         sonuc = resp.json()
-        stdout.write(style.SUCCESS(f"  ✓ {sonuc['row_count']:,} satır yüklendi"))
+        stdout.write(style.SUCCESS(f"  ✓ {sonuc ['row_count']:,} satır yüklendi"))
     except Exception as e:
         stdout.write(style.ERROR(f"  ✗ Hata: {e}"))
 
@@ -113,29 +114,30 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        limit           = options["limit"]
-        tek_dosya       = options["file"]
-        tenant_override = options["tenant_id"]   # None ise dosya adındaki tenant kullanılır
+        limit = options["limit"]
+        tek_dosya = options["file"]
+        tenant_override = options["tenant_id"]
 
         self.stdout.write(self.style.HTTP_INFO("=== external_bank seed başlıyor ===\n"))
         if tenant_override:
             self.stdout.write(f"  → Tenant override: {tenant_override}\n")
 
         if tek_dosya:
-            # ── Tek dosya modu ───────────────────────────────────────────────
+
             parsed = _parse_filename(tek_dosya)
             if not parsed:
                 raise CommandError(
-                    f"Dosya adı formatı hatalı: '{os.path.basename(tek_dosya)}'\n"
+                    f"Dosya adı formatı hatalı: '{os .path .basename (tek_dosya )}'\n"
                     f"Beklenen: {{TENANT}}_{{LOAN_TYPE}}_{{DATA_KIND}}.csv"
                 )
             tenant_id, loan_type, data_kind = parsed
             if tenant_override:
                 tenant_id = tenant_override
-            _upload(BANK_URL, tek_dosya, tenant_id, loan_type, data_kind,
-                    limit, self.stdout, self.style)
+            _upload(
+                BANK_URL, tek_dosya, tenant_id, loan_type, data_kind, limit, self.stdout, self.style
+            )
         else:
-            # ── Dizin tarama modu ────────────────────────────────────────────
+
             dizin = options["dir"]
             if not os.path.isdir(dizin):
                 raise CommandError(f"Dizin bulunamadı: {dizin}")
@@ -149,16 +151,17 @@ class Command(BaseCommand):
                 parsed = _parse_filename(dosya_adi)
 
                 if not parsed:
-                    # Standart format değil — BILINEN_DOSYALAR'a bak
+
                     bilinen = BILINEN_DOSYALAR.get(dosya_adi)
-                    if bilinen and tenant_override:
+                    if bilinen:
                         loan_type, data_kind = bilinen
-                        tenant_id = tenant_override
+
+                        tenant_id = tenant_override if tenant_override else "BANK001"
                     else:
                         self.stdout.write(
                             self.style.WARNING(
                                 f"  ATLANDI '{dosya_adi}' — format uyumsuz "
-                                f"(--tenant-id ile yüklemek için bilinen dosya listesine ekleyin)"
+                                f"(BILINEN_DOSYALAR listesine ekleyin veya --tenant-id kullanın)"
                             )
                         )
                         continue
@@ -167,8 +170,8 @@ class Command(BaseCommand):
                     if tenant_override:
                         tenant_id = tenant_override
                 yol = os.path.join(dizin, dosya_adi)
-                _upload(BANK_URL, yol, tenant_id, loan_type, data_kind,
-                        limit, self.stdout, self.style)
+                _upload(
+                    BANK_URL, yol, tenant_id, loan_type, data_kind, limit, self.stdout, self.style
+                )
 
         self.stdout.write(self.style.SUCCESS("\n=== Seed tamamlandı ==="))
-

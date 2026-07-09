@@ -5,6 +5,7 @@ JWT tabanlı + API Key kimlik doğrulama.
   1. Bearer JWT  → POST /auth/token'dan alınan token
   2. API Key     → X-API-Key header (ortam değişkeni ile yönetilir)
 """
+
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -14,12 +15,10 @@ from fastapi.security import OAuth2PasswordBearer, APIKeyHeader
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-SECRET_KEY     = os.environ.get("JWT_SECRET_KEY", "dev-insecure-secret-change-in-production")
-ALGORITHM      = os.environ.get("JWT_ALGORITHM", "HS256")
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-insecure-secret-change-in-production")
+ALGORITHM = os.environ.get("JWT_ALGORITHM", "HS256")
 EXPIRE_MINUTES = int(os.environ.get("JWT_EXPIRE_MINUTES", "60"))
 
-# API_KEYS ortam değişkeni: "key1:admin,key2:readonly" formatında
-# Örnek: API_KEYS=teamsec-internal-key:admin,teamsec-readonly-key:readonly
 _raw_keys = os.environ.get("API_KEYS", "teamsec-dev-key:admin")
 API_KEYS: dict[str, str] = {}
 for pair in _raw_keys.split(","):
@@ -27,7 +26,7 @@ for pair in _raw_keys.split(","):
         k, role = pair.strip().split(":", 1)
         API_KEYS[k.strip()] = role.strip()
 
-pwd_context   = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
 apikey_scheme = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -36,11 +35,13 @@ DEMO_USERS = {
         "username": "admin",
         "hashed_password": pwd_context.hash("admin"),
         "roles": ["admin"],
+        "allowed_tenants": ["*"],
     },
     "readonly": {
         "username": "readonly",
         "hashed_password": pwd_context.hash("readonly"),
         "roles": ["reader"],
+        "allowed_tenants": ["*"],
     },
 }
 
@@ -57,20 +58,20 @@ def authenticate_user(username: str, password: str) -> Optional[dict]:
 
 
 def create_access_token(username: str) -> str:
-    expire  = datetime.now(timezone.utc) + timedelta(minutes=EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=EXPIRE_MINUTES)
     payload = {"sub": username, "exp": expire}
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 async def get_current_user(
-    token:   Optional[str] = Depends(oauth2_scheme),
+    token: Optional[str] = Depends(oauth2_scheme),
     api_key: Optional[str] = Security(apikey_scheme),
 ) -> dict:
     """
     JWT Bearer VEYA X-API-Key header ile kimlik doğrular.
     İkisi de yoksa veya geçersizse 401 fırlatır.
     """
-    # ── Yöntem 1: API Key ────────────────────────────────────────────────────
+
     if api_key:
         role = API_KEYS.get(api_key)
         if role:
@@ -81,10 +82,9 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # ── Yöntem 2: JWT Bearer ─────────────────────────────────────────────────
     if token:
         try:
-            payload  = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             username = payload.get("sub")
             if not username:
                 raise ValueError
@@ -96,13 +96,13 @@ async def get_current_user(
             )
         user = DEMO_USERS.get(username)
         if not user:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Kullanıcı bulunamadı")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="Kullanıcı bulunamadı"
+            )
         return {**user, "auth_method": "jwt"}
 
-    # ── İkisi de yok ────────────────────────────────────────────────────────
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Kimlik doğrulama gerekli: Bearer token veya X-API-Key header",
         headers={"WWW-Authenticate": "Bearer"},
     )
-

@@ -33,8 +33,12 @@ export function logout() {
 
 export async function triggerSync(tenantId, loanType) {
   const resp = await fetch(
-    `${API_URL}/api/sync?tenant_id=${tenantId}&loan_type=${loanType}`,
-    { method: 'POST', headers: authHeaders() }
+    `${API_URL}/api/sync`,
+    {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant_id: tenantId, loan_type: loanType }),
+    }
   )
   if (resp.status === 401) { handle401(); throw new Error('UNAUTHORIZED') }
   if (!resp.ok) throw new Error(await resp.text())

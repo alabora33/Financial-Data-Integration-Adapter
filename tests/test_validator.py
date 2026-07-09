@@ -2,6 +2,7 @@
 Validator birim testleri.
 Alan doğrulama, tarih, faiz, enum ve cross-field kontrolleri test edilir.
 """
+
 import pytest
 from apps.loans.services.validator import (
     validate_retail_credit,
@@ -9,8 +10,6 @@ from apps.loans.services.validator import (
     validate_payment_plan,
 )
 
-
-# ── Retail kredi ──────────────────────────────────────────────────────────────
 
 class TestRetailKrediValidator:
 
@@ -27,7 +26,7 @@ class TestRetailKrediValidator:
         assert "loan_account_number" in alanlar
 
     def test_bos_musteri_id(self, retail_gecerli):
-        retail_gecerli["customer_id"] = "  "  # sadece boşluk
+        retail_gecerli["customer_id"] = "  "
         sonuc = validate_retail_credit(retail_gecerli)
         assert sonuc.gecerli is False
 
@@ -49,19 +48,19 @@ class TestRetailKrediValidator:
         assert sonuc.gecerli is False
 
     def test_gecersiz_tarih_yyyymmdd(self, retail_gecerli):
-        retail_gecerli["loan_start_date"] = "20251345"  # 13. ay yok
+        retail_gecerli["loan_start_date"] = "20251345"
         sonuc = validate_retail_credit(retail_gecerli)
         assert sonuc.gecerli is False
         alanlar = [h.alan for h in sonuc.hatalar]
         assert "loan_start_date" in alanlar
 
     def test_gecersiz_tarih_subat_30(self, retail_gecerli):
-        retail_gecerli["loan_start_date"] = "20250230"  # Şubatta 30. gün yok
+        retail_gecerli["loan_start_date"] = "20250230"
         sonuc = validate_retail_credit(retail_gecerli)
         assert sonuc.gecerli is False
 
     def test_gecerli_tarih_tireli_format(self, retail_gecerli):
-        retail_gecerli["loan_start_date"] = "2025-03-02"  # tireli format da geçerli
+        retail_gecerli["loan_start_date"] = "2025-03-02"
         sonuc = validate_retail_credit(retail_gecerli)
         assert sonuc.gecerli is True
 
@@ -78,20 +77,18 @@ class TestRetailKrediValidator:
         assert sonuc.gecerli is True
 
     def test_bos_sigorta_gecerli(self, retail_gecerli):
-        retail_gecerli["insurance_included"] = ""  # boş → enum kontrolü yapılmaz
+        retail_gecerli["insurance_included"] = ""
         sonuc = validate_retail_credit(retail_gecerli)
         assert sonuc.gecerli is True
 
     def test_birden_fazla_hata(self, retail_gecerli):
-        retail_gecerli["loan_account_number"]  = ""
+        retail_gecerli["loan_account_number"] = ""
         retail_gecerli["nominal_interest_rate"] = "9999"
-        retail_gecerli["loan_start_date"]       = "ABC"
+        retail_gecerli["loan_start_date"] = "ABC"
         sonuc = validate_retail_credit(retail_gecerli)
         assert sonuc.gecerli is False
         assert len(sonuc.hatalar) >= 3
 
-
-# ── Commercial kredi ──────────────────────────────────────────────────────────
 
 class TestCommercialKrediValidator:
 
@@ -109,8 +106,6 @@ class TestCommercialKrediValidator:
         sonuc = validate_commercial_credit(commercial_gecerli)
         assert sonuc.gecerli is False
 
-
-# ── Ödeme planı ───────────────────────────────────────────────────────────────
 
 class TestOdemePlaniValidator:
 
@@ -141,7 +136,7 @@ class TestOdemePlaniValidator:
         assert sonuc.gecerli is False
 
     def test_gecersiz_taksit_status(self, odeme_plani_gecerli):
-        odeme_plani_gecerli["installment_status"] = "X"  # A veya K olmalı
+        odeme_plani_gecerli["installment_status"] = "X"
         sonuc = validate_payment_plan(odeme_plani_gecerli)
         assert sonuc.gecerli is False
         alanlar = [h.alan for h in sonuc.hatalar]
@@ -154,6 +149,6 @@ class TestOdemePlaniValidator:
             assert sonuc.gecerli is True, f"{durum} geçerli olmalı"
 
     def test_gercek_odeme_tarihi_bos_olabilir(self, odeme_plani_gecerli):
-        odeme_plani_gecerli["actual_payment_date"] = ""  # henüz ödenmemiş taksit
+        odeme_plani_gecerli["actual_payment_date"] = ""
         sonuc = validate_payment_plan(odeme_plani_gecerli)
         assert sonuc.gecerli is True

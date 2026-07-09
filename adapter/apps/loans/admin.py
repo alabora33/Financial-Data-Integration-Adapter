@@ -22,5 +22,13 @@ class PaymentPlanAdmin(admin.ModelAdmin):
 
 @admin.register(SyncLog)
 class SyncLogAdmin(admin.ModelAdmin):
-    list_display = ("tenant", "loan_type", "status", "rows_fetched", "rows_valid", "rows_invalid", "sync_started_at")
+    list_display = (
+        "tenant",
+        "loan_type",
+        "status",
+        "rows_fetched",
+        "rows_valid",
+        "rows_invalid",
+        "sync_started_at",
+    )
     list_filter = ("status", "loan_type", "tenant")

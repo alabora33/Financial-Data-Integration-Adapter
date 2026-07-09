@@ -5,11 +5,8 @@ from pathlib import Path
 DATA_DIR = Path(__file__).parent / "bank_data"
 DATA_DIR.mkdir(exist_ok=True)
 
-# ── Basit in-memory cache ─────────────────────────────────────────────────────
-# Aynı dosyaya gelen art arda sayfa isteklerinde JSON'u defalarca okumayı önler.
-# Her entry: {"rows": [...], "loaded_at": float, "mtime": float}
 _CACHE: dict[str, dict] = {}
-CACHE_TTL = 600  # saniye — 10 dakika sonra yeniden yükle
+CACHE_TTL = 600
 
 
 def _cache_get(path: Path) -> list | None:
@@ -17,7 +14,7 @@ def _cache_get(path: Path) -> list | None:
     entry = _CACHE.get(key)
     if not entry:
         return None
-    # Dosya değiştiyse cache'i geçersiz say
+
     try:
         current_mtime = path.stat().st_mtime
     except FileNotFoundError:
@@ -25,7 +22,7 @@ def _cache_get(path: Path) -> list | None:
     if entry["mtime"] != current_mtime:
         del _CACHE[key]
         return None
-    # TTL dolmuşsa geçersiz say
+
     if time.time() - entry["loaded_at"] > CACHE_TTL:
         del _CACHE[key]
         return None
@@ -34,13 +31,11 @@ def _cache_get(path: Path) -> list | None:
 
 def _cache_set(path: Path, rows: list) -> None:
     _CACHE[str(path)] = {
-        "rows":      rows,
+        "rows": rows,
         "loaded_at": time.time(),
-        "mtime":     path.stat().st_mtime,
+        "mtime": path.stat().st_mtime,
     }
 
-
-# ── Storage fonksiyonları ─────────────────────────────────────────────────────
 
 def _file_path(tenant_id: str, loan_type: str, data_kind: str) -> Path:
     filename = f"{tenant_id}__{loan_type}__{data_kind}.json"
@@ -51,7 +46,7 @@ def save_data(tenant_id: str, loan_type: str, data_kind: str, rows: list) -> Non
     path = _file_path(tenant_id, loan_type, data_kind)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(rows, f, ensure_ascii=False, indent=2)
-    # Yeni veri yüklenince cache'i temizle
+
     _CACHE.pop(str(path), None)
 
 
@@ -92,6 +87,5 @@ def load_data_page(
 
     total = len(all_rows)
     start = (page - 1) * page_size
-    end   = start + page_size
+    end = start + page_size
     return all_rows[start:end], total
-

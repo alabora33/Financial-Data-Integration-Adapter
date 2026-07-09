@@ -5,8 +5,6 @@ use std::collections::HashMap;
 mod validation;
 use validation::{dolu_mu, sayi_gecerli_mi, tarih_gecerli_mi, enum_gecerli_mi};
 
-/// Python'dan çağrılır: validate_row(row: dict) → {"gecerli": bool, "hatalar": list}
-/// row içindeki tüm değerler string — CSV/JSON'dan geldiği gibi.
 #[pyfunction]
 fn validate_row(py: Python<'_>, row: HashMap<String, String>) -> PyResult<PyObject> {
     let get = |key: &str| -> &str {
@@ -15,7 +13,7 @@ fn validate_row(py: Python<'_>, row: HashMap<String, String>) -> PyResult<PyObje
 
     let mut hatalar: Vec<PyObject> = Vec::new();
 
-    // ---- 1. Varlık kontrolü ----
+    
     let zorunlu = [
         "loan_account_number",
         "customer_id",
@@ -34,7 +32,7 @@ fn validate_row(py: Python<'_>, row: HashMap<String, String>) -> PyResult<PyObje
         }
     }
 
-    // ---- 2. Sayı + aralık kontrolü ----
+    
     let faiz = get("nominal_interest_rate");
     if !faiz.is_empty() && !sayi_gecerli_mi(faiz, 0.0, 1000.0) {
         let h = PyDict::new_bound(py);
@@ -44,7 +42,7 @@ fn validate_row(py: Python<'_>, row: HashMap<String, String>) -> PyResult<PyObje
         hatalar.push(h.into());
     }
 
-    // ---- 3. Tarih kontrolü ----
+    
     for alan in ["loan_start_date", "final_maturity_date", "first_payment_date"] {
         let deger = get(alan);
         if !deger.is_empty() && !tarih_gecerli_mi(deger) {
@@ -56,7 +54,7 @@ fn validate_row(py: Python<'_>, row: HashMap<String, String>) -> PyResult<PyObje
         }
     }
 
-    // ---- 4. Enum kontrolü ----
+    
     let sigorta = get("insurance_included");
     if !sigorta.is_empty() && !enum_gecerli_mi(sigorta, &["E", "H"]) {
         let h = PyDict::new_bound(py);
@@ -66,7 +64,7 @@ fn validate_row(py: Python<'_>, row: HashMap<String, String>) -> PyResult<PyObje
         hatalar.push(h.into());
     }
 
-    // ---- Sonuç dict ----
+    
     let result = PyDict::new_bound(py);
     result.set_item("gecerli", hatalar.is_empty())?;
     result.set_item("hatalar", hatalar)?;
@@ -74,7 +72,6 @@ fn validate_row(py: Python<'_>, row: HashMap<String, String>) -> PyResult<PyObje
     Ok(result.into())
 }
 
-/// Python modül tanımı — `import rust_validator` ile erişilir.
 #[pymodule]
 fn rust_validator(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(validate_row, m)?)?;

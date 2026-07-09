@@ -63,7 +63,7 @@ export default function Sync() {
             <strong>{result.odeme_plani?.rows_fetched?.toLocaleString() ?? 0}</strong> ödeme planı satırı işlendi.
           </div>
 
-          {/* Kredi istatistikleri */}
+          {}
           <div className="card-title" style={{ marginBottom: 8, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.5px', color: 'var(--muted)' }}>Kredi Kayıtları</div>
           <div className="stat-grid" style={{ marginBottom: 16 }}>
             <div className="stat-card">
@@ -85,7 +85,7 @@ export default function Sync() {
             </div>
           </div>
 
-          {/* Ödeme planı istatistikleri */}
+          {}
           <div className="card-title" style={{ marginBottom: 8, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.5px', color: 'var(--muted)' }}>Ödeme Planları</div>
           <div className="stat-grid">
             <div className="stat-card">

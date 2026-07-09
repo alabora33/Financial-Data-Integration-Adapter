@@ -81,7 +81,7 @@ export default function Profiling() {
 
       {data && !loading && (
         <>
-          {/* Stat cards */}
+          {}
           <div className="stat-grid">
             <div className="stat-card">
               <div className="stat-label">Toplam Kayıt</div>
@@ -103,7 +103,7 @@ export default function Profiling() {
           </div>
 
           <div className="two-col">
-            {/* Faiz */}
+            {}
             <div className="card">
               <div className="card-title">Faiz &amp; Tutar İstatistikleri</div>
               <table style={{ width: '100%' }}>
@@ -124,7 +124,7 @@ export default function Profiling() {
               </table>
             </div>
 
-            {/* Veri kalitesi */}
+            {}
             <div className="card">
               <div className="card-title">Veri Kalitesi — Eksik Alanlar</div>
               <ProgRow label="Sigorta (boş)"   value={q?.bos_sigorta_alani} total={data.toplam_kayit} bad={q?.bos_sigorta_oran_pct > 5} />
@@ -137,7 +137,7 @@ export default function Profiling() {
           </div>
 
           <div className="two-col">
-            {/* Durum dağılımı */}
+            {}
             <div className="card">
               <div className="card-title">Kredi Durum Dağılımı</div>
               {data.durum_dagilimi?.map(item => (
@@ -152,7 +152,7 @@ export default function Profiling() {
               ))}
             </div>
 
-            {/* Sigorta dağılımı — sadece RETAIL */}
+            {}
             {data.sigorta_dagilimi?.length > 0 && (
               <div className="card">
                 <div className="card-title">Sigorta Dağılımı</div>
@@ -166,7 +166,7 @@ export default function Profiling() {
             )}
           </div>
 
-          {/* Son sync */}
+          {}
           {data.son_senkronizasyon && (
             <div className="card">
               <div className="card-title">Son Senkronizasyon</div>

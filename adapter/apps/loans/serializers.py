@@ -7,7 +7,7 @@ class CreditRecordSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CreditRecord
-        exclude = ("tenant",)  # tenant FK yerine tenant_bank_code string'i dön
+        exclude = ("tenant",)
 
 
 class SyncLogSerializer(serializers.ModelSerializer):

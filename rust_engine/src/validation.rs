@@ -30,7 +30,7 @@ pub fn enum_gecerli_mi(deger: &str, izinliler: &[&str]) -> bool {
 mod tests {
     use super::*;
 
-    // ── dolu_mu ──────────────────────────────────────────────────────────────
+    
 
     #[test]
     fn dolu_mu_bos_string_false() {
@@ -52,7 +52,7 @@ mod tests {
         assert!(dolu_mu("  LOAN_001  "));
     }
 
-    // ── sayi_gecerli_mi ──────────────────────────────────────────────────────
+    
 
     #[test]
     fn sayi_aralik_icinde_gecerli() {
@@ -74,7 +74,7 @@ mod tests {
         assert!(!sayi_gecerli_mi("1.2.3",0.0, 1000.0));
     }
 
-    // ── tarih_gecerli_mi ─────────────────────────────────────────────────────
+    
 
     #[test]
     fn tarih_yyyymmdd_gecerli() {
@@ -90,12 +90,12 @@ mod tests {
 
     #[test]
     fn tarih_olmayan_ay_gecersiz() {
-        assert!(!tarih_gecerli_mi("20251345")); // 13. ay yok
+        assert!(!tarih_gecerli_mi("20251345")); 
     }
 
     #[test]
     fn tarih_subat_30_gecersiz() {
-        assert!(!tarih_gecerli_mi("20250230")); // Şubatta 30. gün yok
+        assert!(!tarih_gecerli_mi("20250230")); 
     }
 
     #[test]
@@ -104,7 +104,7 @@ mod tests {
         assert!(!tarih_gecerli_mi(""));
     }
 
-    // ── enum_gecerli_mi ──────────────────────────────────────────────────────
+    
 
     #[test]
     fn enum_listede_var_gecerli() {
@@ -118,7 +118,7 @@ mod tests {
     fn enum_listede_yok_gecersiz() {
         assert!(!enum_gecerli_mi("X",  &["E", "H"]));
         assert!(!enum_gecerli_mi("",   &["E", "H"]));
-        assert!(!enum_gecerli_mi("e",  &["E", "H"])); // büyük/küçük harf farkı
+        assert!(!enum_gecerli_mi("e",  &["E", "H"])); 
     }
 
     #[test]

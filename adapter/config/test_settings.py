@@ -1,5 +1,6 @@
 """Test ortamı ayarları — SQLite in-memory, hızlı çalışır."""
-from config.settings import *  # noqa: F401, F403
+
+from config.settings import *
 
 DATABASES = {
     "default": {
@@ -8,7 +9,6 @@ DATABASES = {
     }
 }
 
-# Test sırasında şifre hashleme daha hızlı olsun
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.MD5PasswordHasher",
 ]

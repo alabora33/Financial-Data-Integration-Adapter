@@ -2,6 +2,7 @@
 Normalizer birim testleri.
 Tip dönüşümleri ve edge case'ler test edilir.
 """
+
 import datetime
 from decimal import Decimal
 
@@ -14,8 +15,6 @@ from apps.loans.services.normalizer import (
     normalize_payment_plan,
 )
 
-
-# ── parse_date ────────────────────────────────────────────────────────────────
 
 class TestParseDate:
 
@@ -35,7 +34,7 @@ class TestParseDate:
         assert parse_date("   ") is None
 
     def test_olmayan_tarih(self):
-        assert parse_date("20251345") is None   # 13. ay yok
+        assert parse_date("20251345") is None
 
     def test_subatta_30_gun_yok(self):
         assert parse_date("20250230") is None
@@ -46,8 +45,6 @@ class TestParseDate:
     def test_on_dort_aralik(self):
         assert parse_date("20251214") == datetime.date(2025, 12, 14)
 
-
-# ── parse_decimal ─────────────────────────────────────────────────────────────
 
 class TestParseDecimal:
 
@@ -74,8 +71,6 @@ class TestParseDecimal:
         assert parse_decimal("  45.50  ") == Decimal("45.50")
 
 
-# ── parse_int ─────────────────────────────────────────────────────────────────
-
 class TestParseInt:
 
     def test_normal(self):
@@ -92,15 +87,13 @@ class TestParseInt:
         assert parse_int("  7  ") == 7
 
 
-# ── normalize_retail_credit ───────────────────────────────────────────────────
-
 class TestNormalizeRetailCredit:
 
     def test_temel_alanlar(self, retail_gecerli):
         sonuc = normalize_retail_credit(retail_gecerli)
         assert sonuc["loan_account_number"] == "LOAN_000001"
-        assert sonuc["customer_id"]         == "CUST_00001"
-        assert sonuc["customer_type"]       == "BIREYSEL"   # I → BIREYSEL
+        assert sonuc["customer_id"] == "CUST_00001"
+        assert sonuc["customer_type"] == "BIREYSEL"
 
     def test_tarih_donusumu(self, retail_gecerli):
         sonuc = normalize_retail_credit(retail_gecerli)
@@ -109,7 +102,7 @@ class TestNormalizeRetailCredit:
 
     def test_decimal_donusumu(self, retail_gecerli):
         sonuc = normalize_retail_credit(retail_gecerli)
-        assert isinstance(sonuc["original_loan_amount"],  Decimal)
+        assert isinstance(sonuc["original_loan_amount"], Decimal)
         assert isinstance(sonuc["nominal_interest_rate"], Decimal)
         assert sonuc["nominal_interest_rate"] == Decimal("45.00")
 
@@ -145,14 +138,12 @@ class TestNormalizeRetailCredit:
         assert normalize_retail_credit(retail_gecerli)["loan_status_code"] == "AKTIF"
 
 
-# ── normalize_payment_plan ────────────────────────────────────────────────────
-
 class TestNormalizePaymentPlan:
 
     def test_temel_alanlar(self, odeme_plani_gecerli):
         sonuc = normalize_payment_plan(odeme_plani_gecerli)
-        assert sonuc["installment_number"]  == 1
-        assert sonuc["installment_status"]  == "KAPALI"   # K → KAPALI
+        assert sonuc["installment_number"] == 1
+        assert sonuc["installment_status"] == "KAPALI"
 
     def test_tarih_donusumu(self, odeme_plani_gecerli):
         sonuc = normalize_payment_plan(odeme_plani_gecerli)

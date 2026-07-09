@@ -2,6 +2,7 @@
 Django model testleri.
 ORM davranışları, unique_together kısıtları ve FK cascade test edilir.
 """
+
 import datetime
 from decimal import Decimal
 
@@ -87,11 +88,12 @@ class TestCreditRecordModel:
             nominal_interest_rate=Decimal("1"),
             total_interest_amount=Decimal("1"),
         )
-        CreditRecord.objects.create(loan_type="RETAIL",     **base)
+        CreditRecord.objects.create(loan_type="RETAIL", **base)
         CreditRecord.objects.create(loan_type="COMMERCIAL", **base)
-        assert CreditRecord.objects.filter(
-            tenant=tenant, loan_account_number="LOAN_MULTI"
-        ).count() == 2
+        assert (
+            CreditRecord.objects.filter(tenant=tenant, loan_account_number="LOAN_MULTI").count()
+            == 2
+        )
 
     def test_commercial_alanlari_null_olabilir(self, tenant):
         cr = CreditRecord.objects.create(
@@ -108,7 +110,7 @@ class TestCreditRecordModel:
             nominal_interest_rate=Decimal("1"),
             total_interest_amount=Decimal("1"),
         )
-        assert cr.sector_code    == ""
+        assert cr.sector_code == ""
         assert cr.default_probability is None
 
 

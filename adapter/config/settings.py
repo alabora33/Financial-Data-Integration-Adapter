@@ -53,7 +53,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# PostgreSQL varsa onu kullan, yoksa SQLite (local geliştirme)
 if os.environ.get("POSTGRES_HOST"):
     DATABASES = {
         "default": {
@@ -95,3 +94,5 @@ REST_FRAMEWORK = {
 }
 
 BANK_BASE_URL = os.environ.get("BANK_BASE_URL", "http://localhost:8001")
+
+INTERNAL_API_TOKEN = os.environ.get("INTERNAL_API_TOKEN", "dev-internal-token-change-in-production")

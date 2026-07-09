@@ -3,6 +3,7 @@ import httpx
 from fastapi import FastAPI, HTTPException, Query, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from auth import authenticate_user, create_access_token, get_current_user
@@ -10,6 +11,8 @@ from auth import authenticate_user, create_access_token, get_current_user
 load_dotenv()
 
 ADAPTER_URL = os.environ.get("ADAPTER_BASE_URL", "http://adapter:8002")
+INTERNAL_TOKEN = os.environ.get("INTERNAL_API_TOKEN", "dev-internal-token-change-in-production")
+INTERNAL_HEADERS = {"X-Internal-Token": INTERNAL_TOKEN}
 
 app = FastAPI(
     title="TeamSec Adapter API",
@@ -26,13 +29,13 @@ app.add_middleware(
 )
 
 
-# ─── Yardımcı ────────────────────────────────────────────────────────────────
-
 async def _adapter_get(path: str, params: dict) -> dict:
     """adapter/ Django servisine GET isteği atar."""
     async with httpx.AsyncClient() as client:
         try:
-            resp = await client.get(f"{ADAPTER_URL}{path}", params=params, timeout=60.0)
+            resp = await client.get(
+                f"{ADAPTER_URL}{path}", params=params, headers=INTERNAL_HEADERS, timeout=60.0
+            )
             resp.raise_for_status()
             return resp.json()
         except httpx.HTTPStatusError as e:
@@ -45,7 +48,9 @@ async def _adapter_post(path: str, body: dict) -> dict:
     """adapter/ Django servisine POST isteği atar."""
     async with httpx.AsyncClient() as client:
         try:
-            resp = await client.post(f"{ADAPTER_URL}{path}", json=body, timeout=600.0)  # sync uzun sürebilir
+            resp = await client.post(
+                f"{ADAPTER_URL}{path}", json=body, headers=INTERNAL_HEADERS, timeout=600.0
+            )
             resp.raise_for_status()
             return resp.json()
         except httpx.HTTPStatusError as e:
@@ -54,7 +59,20 @@ async def _adapter_post(path: str, body: dict) -> dict:
             raise HTTPException(status_code=503, detail=f"Adapter servisine ulaşılamıyor: {e}")
 
 
-# ─── Endpoint'ler ────────────────────────────────────────────────────────────
+class SyncRequest(BaseModel):
+    tenant_id: str
+    loan_type: str = "RETAIL"
+
+
+def _check_tenant_access(user: dict, tenant_id: str) -> None:
+    """Kullanıcının istenen tenant'a erişim izni olup olmadığını kontrol eder."""
+    allowed = user.get("allowed_tenants", ["*"])
+    if "*" not in allowed and tenant_id not in allowed:
+        raise HTTPException(
+            status_code=403,
+            detail=f"{tenant_id} tenant'a erişim izniniz yok",
+        )
+
 
 @app.get("/health", tags=["Sistem"])
 def health_check():
@@ -79,14 +97,17 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 @app.post("/api/sync", tags=["Senkronizasyon"])
 async def trigger_sync(
-    tenant_id: str = Query(..., description="Banka kodu (örn: BANK001)"),
-    loan_type: str = Query("RETAIL", description="RETAIL veya COMMERCIAL"),
+    body: SyncRequest,
     _user: dict = Depends(get_current_user),
 ):
-    """Senkronizasyon başlatır. JWT token gerektirir."""
+    """Senkronizasyon başlatir. JWT token gerektirir. Body: {tenant_id, loan_type}"""
+    _check_tenant_access(_user, body.tenant_id)
+    loan_type = body.loan_type.upper()
+    if loan_type not in ("RETAIL", "COMMERCIAL"):
+        raise HTTPException(status_code=400, detail="loan_type RETAIL veya COMMERCIAL olmalıdır")
     return await _adapter_post(
         "/internal/sync/",
-        {"bank_code": tenant_id, "loan_type": loan_type},
+        {"bank_code": body.tenant_id, "loan_type": loan_type},
     )
 
 
@@ -99,6 +120,7 @@ async def get_data(
     _user: dict = Depends(get_current_user),
 ):
     """Normalize edilmiş kredi kayıtlarını sayfalı döndürür. JWT token gerektirir."""
+    _check_tenant_access(_user, tenant_id)
     return await _adapter_get(
         "/internal/data/",
         {"tenant_id": tenant_id, "loan_type": loan_type, "page": page, "page_size": page_size},
@@ -112,32 +134,8 @@ async def get_profiling(
     _user: dict = Depends(get_current_user),
 ):
     """Veri kalitesi profil raporu. JWT token gerektirir."""
+    _check_tenant_access(_user, tenant_id)
     return await _adapter_get(
         "/internal/profiling/",
         {"tenant_id": tenant_id, "loan_type": loan_type},
     )
-
-
-
-@app.get("/api/data")
-def get_data(tenant_id: str, loan_type: str, page: int = 1, page_size: int = 100):
-    """
-    Normalize edilmiş kredi verilerini sayfalı olarak döndürür.
-    Faz 3'te implement edilecek.
-    """
-    return {
-        "status": "not_implemented",
-        "message": "Data endpoint Faz 3'te eklenecek",
-    }
-
-
-@app.get("/api/profiling")
-def get_profiling(tenant_id: str, loan_type: str):
-    """
-    Veri kalitesi profil raporunu döndürür.
-    Faz 5'te implement edilecek.
-    """
-    return {
-        "status": "not_implemented",
-        "message": "Profiling endpoint Faz 5'te eklenecek",
-    }

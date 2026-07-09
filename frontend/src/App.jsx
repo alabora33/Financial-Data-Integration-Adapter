@@ -10,7 +10,7 @@ export default function App() {
   const [token, setToken] = useState(localStorage.getItem('teamsec_token'))
   const [tab, setTab]   = useState('sync')
 
-  // Token süresi dolarsa veya 401 gelirse otomatik çıkış
+  
   useEffect(() => {
     const handleUnauth = () => setToken(null)
     window.addEventListener('unauthorized', handleUnauth)
