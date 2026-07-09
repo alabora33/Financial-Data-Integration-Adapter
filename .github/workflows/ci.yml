@@ -33,7 +33,6 @@ jobs:
       POSTGRES_PASSWORD: teamsec_secret
       POSTGRES_HOST: localhost
       POSTGRES_PORT: 5432
-      INTERNAL_API_TOKEN: ci-test-token
       JWT_SECRET_KEY: ci-test-jwt-secret
       BANK_BASE_URL: http://localhost:8001
       ADAPTER_BASE_URL: http://localhost:8002
