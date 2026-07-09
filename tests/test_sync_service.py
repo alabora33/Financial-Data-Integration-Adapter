@@ -300,3 +300,49 @@ class TestSyncCreditData:
         assert CreditRecord.objects.filter(tenant__bank_code="BANK001", loan_type="RETAIL").count() == 1
         assert CreditRecord.objects.filter(tenant__bank_code="BANK001", loan_type="COMMERCIAL").count() == 1
         assert CreditRecord.objects.filter(tenant__bank_code="BANK001").count() == 2
+
+    # ── TC-04 (plan) ──────────────────────────────────────────────────────
+    @pytest.mark.django_db
+    @patch("apps.loans.services.sync_service.requests.get")
+    def test_odeme_plani_tum_satirlar_gecersiz_eski_veri_korunur(self, mock_get):
+        """
+        TC-04 (plan): Tüm ödeme planı satırları geçersizse eski planlar korunmalı.
+        _sync_payment_plans doğrudan test edilir — credit CASCADE'inden bağımsız.
+        """
+        import datetime
+        from decimal import Decimal
+        from apps.loans.models import Tenant, CreditRecord, PaymentPlan
+        from apps.loans.services.sync_service import _sync_payment_plans
+
+        # DB'ye manuel durum oluştur
+        tenant = Tenant.objects.create(bank_code="BANK_TC04")
+        credit = CreditRecord.objects.create(
+            tenant=tenant, loan_type="RETAIL",
+            loan_account_number="LOAN_TC04_001",
+            customer_type="I", loan_status_code="A",
+            loan_start_date=datetime.date(2025, 1, 1),
+            final_maturity_date=datetime.date(2026, 1, 1),
+            original_loan_amount=Decimal("50000"),
+            outstanding_principal_balance=Decimal("40000"),
+            nominal_interest_rate=Decimal("45"),
+            total_interest_amount=Decimal("900"),
+        )
+        PaymentPlan.objects.create(
+            credit=credit, installment_number=1,
+            scheduled_payment_date=datetime.date(2025, 4, 2),
+            installment_amount=Decimal("4583"),
+            principal_component=Decimal("4166"),
+            interest_component=Decimal("375"),
+            installment_status="K",
+        )
+        assert PaymentPlan.objects.count() == 1
+
+        # Tüm planlar yabancı loan_acc → cross-file geçersiz → rows_valid=0 → koru
+        yabanci_plan = {**PLAN_SATIRLARI[0], "loan_account_number": "LOAN_YABANCI_TC04"}
+        mock_get.side_effect = [_bank_yaniti([yabanci_plan])]
+
+        sonuc = _sync_payment_plans(tenant, "BANK_TC04", "RETAIL")
+
+        assert sonuc["rows_valid"] == 0
+        assert "warning" in sonuc
+        assert PaymentPlan.objects.count() == 1  # Eski plan korundu

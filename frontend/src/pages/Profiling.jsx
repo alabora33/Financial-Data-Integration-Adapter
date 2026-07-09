@@ -168,11 +168,17 @@ export default function Profiling() {
             {}
             <div className="card">
               <div className="card-title">Veri Kalitesi — Eksik Alanlar</div>
-              <ProgRow label="Sigorta (boş)"   value={q?.bos_sigorta_alani} total={data.toplam_kayit} bad={q?.bos_sigorta_oran_pct > 5} />
-              <ProgRow label="Dış Rating (boş)" value={q?.bos_dis_rating}    total={data.toplam_kayit} bad={q?.bos_dis_rating_pct > 5} />
-              <ProgRow label="İç Rating (boş)"  value={q?.bos_ic_rating}     total={data.toplam_kayit} bad />
+              <ProgRow label="Sigorta (boş)"          value={q?.bos_sigorta_alani}     total={data.toplam_kayit} bad={q?.bos_sigorta_oran_pct > 5} />
+              <ProgRow label="Dış Rating (boş)"        value={q?.bos_dis_rating}         total={data.toplam_kayit} bad={q?.bos_dis_rating_pct > 5} />
+              <ProgRow label="İç Rating (boş)"         value={q?.bos_ic_rating}          total={data.toplam_kayit} bad={q?.bos_ic_rating_pct > 5} />
+              <ProgRow label="Müşteri ID (boş)"        value={q?.bos_customer_id}        total={data.toplam_kayit} bad={q?.bos_customer_id_pct > 1} />
+              <ProgRow label="Kredi Başl. Tarihi (boş)" value={q?.bos_loan_start_date}   total={data.toplam_kayit} bad={q?.bos_loan_start_date_pct > 5} />
+              <ProgRow label="Vade Tarihi (boş)"       value={q?.bos_final_maturity_date} total={data.toplam_kayit} bad={q?.bos_final_maturity_pct > 5} />
+              <ProgRow label="Kapanış Tarihi (boş)"    value={q?.bos_loan_closing_date}  total={data.toplam_kayit} bad={false} />
+              <ProgRow label="Sıfır Faiz Oranı"        value={q?.sifir_faiz_orani}       total={data.toplam_kayit} bad={q?.sifir_faiz_pct > 10} />
+              <ProgRow label="Sıfır Kullandırılan"     value={q?.sifir_original_tutar}   total={data.toplam_kayit} bad={q?.sifir_tutar_pct > 5} />
               <p style={{ fontSize: '11px', color: 'var(--muted)', marginTop: '10px' }}>
-                * Kırmızı: %5 üzeri eksiklik
+                * Kırmızı: eşik aşıldı
               </p>
             </div>
           </div>

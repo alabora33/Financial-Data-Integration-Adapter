@@ -140,3 +140,29 @@ class TestKorumaEndpointleri:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert resp.status_code not in (401, 403)
+
+    def test_api_key_tenant_kisitlama_403(self):
+        """Tenant kısıtlı API key başka tenant'a erişemez — 403 beklenir."""
+        import auth as auth_module
+        from unittest.mock import patch
+
+        bank001_key_entry = {"role": "reader", "allowed_tenants": ["BANK001"]}
+        with patch.dict(auth_module.API_KEYS, {"bank001-key": bank001_key_entry}):
+            resp = client.get(
+                "/api/data?tenant_id=BANK002&loan_type=RETAIL",
+                headers={"X-API-Key": "bank001-key"},
+            )
+        assert resp.status_code == 403
+
+    def test_api_key_tenant_kendi_tenanti_gecerli(self):
+        """Tenant kısıtlı API key kendi tenantına erişebilir — 401/403 değil."""
+        import auth as auth_module
+        from unittest.mock import patch
+
+        bank001_key_entry = {"role": "reader", "allowed_tenants": ["BANK001"]}
+        with patch.dict(auth_module.API_KEYS, {"bank001-key": bank001_key_entry}):
+            resp = client.get(
+                "/api/data?tenant_id=BANK001&loan_type=RETAIL",
+                headers={"X-API-Key": "bank001-key"},
+            )
+        assert resp.status_code not in (401, 403)

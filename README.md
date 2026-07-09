@@ -155,6 +155,22 @@ sudo docker compose exec adapter python manage.py seed_bank \
   --file /sample_data/BANK002__RETAIL__credit.csv
 ```
 
+**Demo: Masked CSV'leri farklı tenant'lara yükle**
+
+Repo’daki örnek veriler `retail_credit_masked.csv` gibi isimlendirilmiştir.
+`--tenant-id` ile hangi bankaya yükleneceğini belirtebilirsiniz:
+
+```bash
+# BANK001 (varsayılan)
+sudo docker compose exec adapter python manage.py seed_bank
+
+# BANK002 için aynı CSV'ler
+sudo docker compose exec adapter python manage.py seed_bank --tenant-id BANK002
+
+# BANK003 için
+sudo docker compose exec adapter python manage.py seed_bank --tenant-id BANK003
+```
+
 ---
 
 ## Validation Kuralları
@@ -187,7 +203,7 @@ Validation motoru Rust ile yazılmış (`rust_engine/`), PyO3 köprüsüyle Pyth
 ## Testleri Çalıştır
 
 ```bash
-# Python testleri (113 test, SQLite in-memory)
+# Python testleri (117 test, SQLite in-memory)
 cd adapter && source .venv/bin/activate && cd ..
 python -m pytest tests/ -v
 
