@@ -178,3 +178,108 @@ class TestSyncCreditData:
         sync_credit_data("BANK999", "RETAIL")
 
         assert Tenant.objects.filter(bank_code="BANK999").exists()
+
+    # ── TC-04 ────────────────────────────────────────────────────────────
+    @patch("apps.loans.services.sync_service.requests.get")
+    def test_tum_satirlar_gecersiz_eski_veri_korunur(self, mock_get):
+        """
+        TC-04: Tüm satırlar geçersizse eski geçerli veri korunmalı.
+        Kritik iş kuralı — sync_service.py satır 79-86.
+        """
+        hatali_satir = {**KREDI_SATIRLARI[0], "loan_account_number": ""}
+        mock_get.side_effect = [
+            # 1. sync: geçerli veri
+            _bank_yaniti(KREDI_SATIRLARI),
+            _bank_yaniti(PLAN_SATIRLARI),
+            # 2. sync: tüm satırlar hatalı
+            _bank_yaniti([hatali_satir]),
+            _bank_yaniti([]),
+        ]
+        from apps.loans.services.sync_service import sync_credit_data
+
+        sync_credit_data("BANK001", "RETAIL")
+        assert CreditRecord.objects.filter(tenant__bank_code="BANK001").count() == 1
+
+        sonuc = sync_credit_data("BANK001", "RETAIL")
+
+        # Eski veri korundu
+        assert CreditRecord.objects.filter(tenant__bank_code="BANK001").count() == 1
+        assert sonuc["kredi"]["rows_valid"] == 0
+        assert sonuc["kredi"]["rows_deleted_before_sync"] == 0
+        assert "warning" in sonuc["kredi"]
+
+    # ── TC-01 ────────────────────────────────────────────────────────────
+    @patch("apps.loans.services.sync_service.requests.get")
+    def test_tenant_izolasyonu(self, mock_get):
+        """
+        TC-01: BANK001 sync edilince BANK002 verisi etkilenmemeli.
+        """
+        mock_get.side_effect = [
+            _bank_yaniti(KREDI_SATIRLARI),
+            _bank_yaniti(PLAN_SATIRLARI),
+        ]
+        from apps.loans.services.sync_service import sync_credit_data
+
+        sync_credit_data("BANK001", "RETAIL")
+
+        assert CreditRecord.objects.filter(tenant__bank_code="BANK001").count() == 1
+        assert CreditRecord.objects.filter(tenant__bank_code="BANK002").count() == 0
+
+    # ── TC-03 ────────────────────────────────────────────────────────────
+    @patch("apps.loans.services.sync_service.requests.get")
+    def test_replacement_1000_2000(self, mock_get):
+        """
+        TC-03: 2. sync append etmez; eski veri silinip yenisi yazılır.
+        3 kayıt → 5 kayıt sync yapılınca toplam 5 olmalı (8 değil).
+        """
+        satirlar_3 = [
+            {**KREDI_SATIRLARI[0], "loan_account_number": f"LOAN_{i:06d}"}
+            for i in range(3)
+        ]
+        satirlar_5 = [
+            {**KREDI_SATIRLARI[0], "loan_account_number": f"LOAN_{i:06d}"}
+            for i in range(5)
+        ]
+        mock_get.side_effect = [
+            _bank_yaniti(satirlar_3),
+            _bank_yaniti([]),
+            _bank_yaniti(satirlar_5),
+            _bank_yaniti([]),
+        ]
+        from apps.loans.services.sync_service import sync_credit_data
+
+        sync_credit_data("BANK001", "RETAIL")
+        assert CreditRecord.objects.filter(tenant__bank_code="BANK001").count() == 3
+
+        sonuc = sync_credit_data("BANK001", "RETAIL")
+        assert CreditRecord.objects.filter(tenant__bank_code="BANK001").count() == 5
+        assert sonuc["kredi"]["rows_deleted_before_sync"] == 3
+        assert sonuc["kredi"]["rows_valid"] == 5
+
+    # ── TC-02 ────────────────────────────────────────────────────────────
+    @patch("apps.loans.services.sync_service.requests.get")
+    def test_retail_commercial_ayri_sync(self, mock_get):
+        """
+        TC-02: Aynı tenant için RETAIL ve COMMERCIAL bağımsız olarak
+        sync edilebilmeli; kayıtlar birbirine karışmamalı.
+        """
+        retail_satir = {**KREDI_SATIRLARI[0], "loan_account_number": "LOAN_RETAIL_001"}
+        commercial_satir = {
+            **KREDI_SATIRLARI[0],
+            "loan_account_number": "LOAN_COM_001",
+            "customer_type": "C",
+        }
+        mock_get.side_effect = [
+            _bank_yaniti([retail_satir]),
+            _bank_yaniti([]),
+            _bank_yaniti([commercial_satir]),
+            _bank_yaniti([]),
+        ]
+        from apps.loans.services.sync_service import sync_credit_data
+
+        sync_credit_data("BANK001", "RETAIL")
+        sync_credit_data("BANK001", "COMMERCIAL")
+
+        assert CreditRecord.objects.filter(tenant__bank_code="BANK001", loan_type="RETAIL").count() == 1
+        assert CreditRecord.objects.filter(tenant__bank_code="BANK001", loan_type="COMMERCIAL").count() == 1
+        assert CreditRecord.objects.filter(tenant__bank_code="BANK001").count() == 2
