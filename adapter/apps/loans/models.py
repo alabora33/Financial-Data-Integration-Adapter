@@ -89,7 +89,7 @@ class CreditRecord(models.Model):
         ]
 
     def __str__(self):
-        return f"{self .loan_account_number} ({self .loan_type})"
+        return f"{self.loan_account_number} ({self.loan_type})"
 
 
 class PaymentPlan(models.Model):
@@ -120,7 +120,7 @@ class PaymentPlan(models.Model):
         unique_together = ("credit", "installment_number")
 
     def __str__(self):
-        return f"{self .credit .loan_account_number} — Taksit {self .installment_number}"
+        return f"{self.credit.loan_account_number} — Taksit {self.installment_number}"
 
 
 class SyncLog(models.Model):
@@ -151,4 +151,4 @@ class SyncLog(models.Model):
         ordering = ["-sync_started_at"]
 
     def __str__(self):
-        return f"{self .tenant} / {self .loan_type} / {self .status}"
+        return f"{self.tenant} / {self.loan_type} / {self.status}"

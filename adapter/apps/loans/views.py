@@ -177,6 +177,23 @@ def profiling_view(request):
         .first()
     )
 
+    # Tüm nullable/blank model alanları için kapsamlı null/boş oranı hesapla
+    _NULL_TARIH = ["first_payment_date", "loan_closing_date"]
+    _NULL_DECIMAL = ["default_probability"]
+    _BOS_CHAR = [
+        "insurance_included", "internal_rating", "external_rating",
+        "customer_district_code", "customer_province_code", "loan_product_type",
+        "loan_status_flag", "customer_region_code", "sector_code",
+        "internal_credit_rating", "risk_class", "customer_segment",
+    ]
+    null_oranlar = {}
+    for alan in _NULL_TARIH + _NULL_DECIMAL:
+        sayi = qs.filter(**{f"{alan}__isnull": True}).count()
+        null_oranlar[alan] = {"bos_sayi": sayi, "bos_pct": round(sayi / total * 100, 2)}
+    for alan in _BOS_CHAR:
+        sayi = qs.filter(Q(**{alan: ""}) | Q(**{f"{alan}__isnull": True})).count()
+        null_oranlar[alan] = {"bos_sayi": sayi, "bos_pct": round(sayi / total * 100, 2)}
+
     return Response(
         {
             "tenant_id": tenant_id,
@@ -216,6 +233,7 @@ def profiling_view(request):
             "durum_dagilimi": durum_dagilim,
             "sigorta_dagilimi": sigorta_dagilim,
             "kategorik_analiz": kategorik_analiz,
+            "null_oranlar": null_oranlar,
             "son_senkronizasyon": (
                 {
                     "tarih": son_sync.sync_started_at,

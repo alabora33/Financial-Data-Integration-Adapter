@@ -128,7 +128,9 @@ def _sync_payment_plans(tenant, bank_code: str, loan_type: str) -> dict:
     """
     credit_map = {
         rec.loan_account_number: rec
-        for rec in CreditRecord.objects.filter(tenant=tenant, loan_type=loan_type)
+        for rec in CreditRecord.objects.filter(
+            tenant=tenant, loan_type=loan_type
+        ).only("id", "loan_account_number")
     }
 
     rows_fetched = 0

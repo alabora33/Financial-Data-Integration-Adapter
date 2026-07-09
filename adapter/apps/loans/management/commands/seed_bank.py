@@ -66,7 +66,7 @@ def _upload(bank_url, yol, tenant_id, loan_type, data_kind, limit, stdout, style
 
     kb = len(icerik) / 1024
     stdout.write(
-        f"  Yükleniyor: {os .path .basename (yol )} ({kb :.0f} KB) → {tenant_id}/{loan_type}/{data_kind}..."
+        f"  Yükleniyor: {os.path.basename(yol)} ({kb:.0f} KB) → {tenant_id}/{loan_type}/{data_kind}..."
     )
 
     try:
@@ -127,7 +127,7 @@ class Command(BaseCommand):
             parsed = _parse_filename(tek_dosya)
             if not parsed:
                 raise CommandError(
-                    f"Dosya adı formatı hatalı: '{os .path .basename (tek_dosya )}'\n"
+                    f"Dosya adı formatı hatalı: '{os.path.basename(tek_dosya)}'\n"
                     f"Beklenen: {{TENANT}}_{{LOAN_TYPE}}_{{DATA_KIND}}.csv"
                 )
             tenant_id, loan_type, data_kind = parsed

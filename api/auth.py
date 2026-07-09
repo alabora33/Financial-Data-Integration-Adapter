@@ -10,6 +10,7 @@ JWT tabanlı + API Key kimlik doğrulama.
 import json
 import os
 import re
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -64,6 +65,7 @@ DEMO_USERS = {
 # Kayıtlı kullanıcıları kalcı dosyada sakla (api/ klasörü Docker volume ile bağlı)
 USERS_FILE = Path(__file__).parent / "users.json"
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{3,32}$")
+_users_lock = threading.Lock()
 
 
 def _load_registered_users() -> dict:
@@ -79,12 +81,13 @@ def _load_registered_users() -> dict:
 
 def _save_registered_user(username: str, user: dict) -> None:
     """Yeni kullanıcıyı dosyaya atomik olarak ekler."""
-    users = _load_registered_users()
-    users[username] = user
-    tmp = USERS_FILE.with_suffix(".tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(users, f, ensure_ascii=False, indent=2)
-    tmp.replace(USERS_FILE)
+    with _users_lock:
+        users = _load_registered_users()
+        users[username] = user
+        tmp = USERS_FILE.with_suffix(".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(users, f, ensure_ascii=False, indent=2)
+        tmp.replace(USERS_FILE)
 
 
 def register_user(username: str, password: str) -> dict:
@@ -101,16 +104,23 @@ def register_user(username: str, password: str) -> dict:
         raise ValueError("Şifre en az 6 karakter olmalıdır.")
     if username in DEMO_USERS:
         raise ValueError("Bu kullanıcı adı kullanımda.")
-    if username in _load_registered_users():
-        raise ValueError("Bu kullanıcı adı kullanımda.")
 
+    hashed = pwd_context.hash(password)
     user = {
         "username": username,
-        "hashed_password": pwd_context.hash(password),
+        "hashed_password": hashed,
         "roles": ["reader"],
         "allowed_tenants": ["*"],
     }
-    _save_registered_user(username, user)
+    with _users_lock:
+        if username in _load_registered_users():
+            raise ValueError("Bu kullanıcı adı kullanımda.")
+        tmp = USERS_FILE.with_suffix(".tmp")
+        existing = _load_registered_users()
+        existing[username] = user
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(existing, f, ensure_ascii=False, indent=2)
+        tmp.replace(USERS_FILE)
     return user
 
 def verify_password(plain: str, hashed: str) -> bool:

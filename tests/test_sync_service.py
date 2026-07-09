@@ -188,12 +188,10 @@ class TestSyncCreditData:
 
         assert Tenant.objects.filter(bank_code="BANK999").exists()
 
-    # ── TC-04 ────────────────────────────────────────────────────────────
     @patch("apps.loans.services.sync_service.requests.get")
     def test_tum_satirlar_gecersiz_eski_veri_korunur(self, mock_get):
         """
         TC-04: Tüm satırlar geçersizse eski geçerli veri korunmalı.
-        Kritik iş kuralı — sync_service.py satır 79-86.
         """
         hatali_satir = {**KREDI_SATIRLARI[0], "loan_account_number": ""}
         mock_get.side_effect = [
@@ -219,7 +217,6 @@ class TestSyncCreditData:
         assert sonuc["kredi"]["rows_deleted_before_sync"] == 0
         assert "warning" in sonuc["kredi"]
 
-    # ── TC-01 ────────────────────────────────────────────────────────────
     @patch("apps.loans.services.sync_service.requests.get")
     def test_tenant_izolasyonu(self, mock_get):
         """
@@ -238,7 +235,6 @@ class TestSyncCreditData:
         assert CreditRecord.objects.filter(tenant__bank_code="BANK001").count() == 1
         assert CreditRecord.objects.filter(tenant__bank_code="BANK002").count() == 0
 
-    # ── TC-03 ────────────────────────────────────────────────────────────
     @patch("apps.loans.services.sync_service.requests.get")
     def test_replacement_1000_2000(self, mock_get):
         """
@@ -271,7 +267,6 @@ class TestSyncCreditData:
         assert sonuc["kredi"]["rows_deleted_before_sync"] == 3
         assert sonuc["kredi"]["rows_valid"] == 5
 
-    # ── TC-02 ────────────────────────────────────────────────────────────
     @patch("apps.loans.services.sync_service.requests.get")
     def test_retail_commercial_ayri_sync(self, mock_get):
         """
@@ -301,7 +296,6 @@ class TestSyncCreditData:
         assert CreditRecord.objects.filter(tenant__bank_code="BANK001", loan_type="COMMERCIAL").count() == 1
         assert CreditRecord.objects.filter(tenant__bank_code="BANK001").count() == 2
 
-    # ── TC-04 (plan) ──────────────────────────────────────────────────────
     @pytest.mark.django_db
     @patch("apps.loans.services.sync_service.requests.get")
     def test_odeme_plani_tum_satirlar_gecersiz_eski_veri_korunur(self, mock_get):

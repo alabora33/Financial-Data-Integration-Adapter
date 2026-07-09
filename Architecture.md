@@ -15,7 +15,7 @@ TeamSec Adapter, çoklu bankadan gelen finansal kredi verilerini normalize eden,
 │  FastAPI  (:8000)                                               │
 │  • JWT / API Key kimlik doğrulama                               │
 │  • Tenant izolasyon kontrolü                                    │
-│  • Route: /auth/token  /api/sync  /api/data  /api/profiling     │
+│  • Route: /auth/token  /auth/register  /api/sync  /api/data  /api/profiling │
 └──────────────────────────┬──────────────────────────────────────┘
                            │ HTTP/JSON + X-Internal-Token
 ┌──────────────────────────▼──────────────────────────────────────┐
