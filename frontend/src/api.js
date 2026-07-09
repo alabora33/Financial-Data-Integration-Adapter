@@ -61,6 +61,20 @@ export async function getProfiling(tenantId, loanType) {
   return resp.json()
 }
 
+export async function uploadCSV(tenantId, loanType, dataKind, file) {
+  const p = new URLSearchParams({ tenant_id: tenantId, loan_type: loanType, data_kind: dataKind })
+  const body = new FormData()
+  body.append('file', file)
+  const resp = await fetch(`${API_URL}/api/upload?${p}`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body,
+  })
+  if (resp.status === 401) { handle401(); throw new Error('UNAUTHORIZED') }
+  if (!resp.ok) throw new Error(await resp.text())
+  return resp.json()
+}
+
 export function getUsernameFromToken() {
   const token = getToken()
   if (!token) return ''

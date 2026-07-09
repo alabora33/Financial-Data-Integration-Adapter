@@ -13,6 +13,46 @@ function fmtM(n) {
   return (Number(n) / 1_000_000).toFixed(2) + 'M ₺'
 }
 
+const PIE_COLORS = ['#3b82f6', '#22c55e', '#ef4444', '#f59e0b', '#8b5cf6', '#06b6d4']
+
+function PieChart({ items }) {
+  if (!items || items.length === 0) return null
+  const total = items.reduce((s, x) => s + (x.sayi || 0), 0)
+  if (total === 0) return null
+  const R = 70, hole = 42, cx = 90, cy = 90
+  let angle = -Math.PI / 2
+  const slices = items.map((item, i) => {
+    const pct = item.sayi / total
+    const start = angle
+    angle += pct * 2 * Math.PI
+    return { ...item, pct, start, end: angle, color: PIE_COLORS[i % PIE_COLORS.length] }
+  })
+  function arc(s) {
+    const x1 = cx + R * Math.cos(s.start), y1 = cy + R * Math.sin(s.start)
+    const x2 = cx + R * Math.cos(s.end),   y2 = cy + R * Math.sin(s.end)
+    const x3 = cx + hole * Math.cos(s.end), y3 = cy + hole * Math.sin(s.end)
+    const x4 = cx + hole * Math.cos(s.start), y4 = cy + hole * Math.sin(s.start)
+    const lg = s.pct > 0.5 ? 1 : 0
+    return `M${x1} ${y1} A${R} ${R} 0 ${lg} 1 ${x2} ${y2} L${x3} ${y3} A${hole} ${hole} 0 ${lg} 0 ${x4} ${y4}Z`
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <svg width={180} height={180} viewBox="0 0 180 180">
+        {slices.map((s, i) => <path key={i} d={arc(s)} fill={s.color} />)}
+      </svg>
+      <div>
+        {slices.map((s, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, fontSize: 13 }}>
+            <div style={{ width: 11, height: 11, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+            <span>{s.loan_status_code === 'A' ? 'Aktif' : s.loan_status_code === 'K' ? 'Kapalı' : s.loan_status_code}</span>
+            <span style={{ color: 'var(--muted)', marginLeft: 4 }}>{(s.pct * 100).toFixed(1)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ProgRow({ label, value, total, bad }) {
   const pct = total > 0 ? Math.min((value / total) * 100, 100) : 0
   return (
@@ -109,11 +149,12 @@ export default function Profiling() {
               <table style={{ width: '100%' }}>
                 <tbody>
                   {[
-                    ['Faiz — Min',  `%${fmt(f?.min)}`],
-                    ['Faiz — Max',  `%${fmt(f?.max)}`],
-                    ['Faiz — Ort',  `%${fmt(f?.ortalama)}`],
-                    ['Tutar — Min', `${fmt(t?.min)} ₺`],
-                    ['Tutar — Max', `${fmt(t?.max)} ₺`],
+                    ['Faiz — Min',    `%${fmt(f?.min)}`],
+                    ['Faiz — Max',    `%${fmt(f?.max)}`],
+                    ['Faiz — Ort',    `%${fmt(f?.ortalama)}`],
+                    ['Faiz — Std.Sp', f?.stddev != null ? `%${fmt(f.stddev)}` : '—'],
+                    ['Tutar — Min',  `${fmt(t?.min)} ₺`],
+                    ['Tutar — Max',  `${fmt(t?.max)} ₺`],
                   ].map(([lbl, val]) => (
                     <tr key={lbl}>
                       <td style={{ padding: '7px 0', color: 'var(--muted)', fontSize: '13px' }}>{lbl}</td>
@@ -140,16 +181,19 @@ export default function Profiling() {
             {}
             <div className="card">
               <div className="card-title">Kredi Durum Dağılımı</div>
-              {data.durum_dagilimi?.map(item => (
-                <div className="dist-row" key={item.loan_status_code}>
-                  <span>
-                    {item.loan_status_code === 'A' ? 'A — Aktif'
-                   : item.loan_status_code === 'K' ? 'K — Kapalı'
-                   : item.loan_status_code}
-                  </span>
-                  <span className="dist-count">{item.sayi?.toLocaleString()}</span>
-                </div>
-              ))}
+              <PieChart items={data.durum_dagilimi} />
+              <div style={{ marginTop: 12 }}>
+                {data.durum_dagilimi?.map(item => (
+                  <div className="dist-row" key={item.loan_status_code}>
+                    <span>
+                      {item.loan_status_code === 'A' ? 'A — Aktif'
+                     : item.loan_status_code === 'K' ? 'K — Kapalı'
+                     : item.loan_status_code}
+                    </span>
+                    <span className="dist-count">{item.sayi?.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
             </div>
 
             {}
@@ -165,6 +209,33 @@ export default function Profiling() {
               </div>
             )}
           </div>
+
+          {}
+          {data.kategorik_analiz && Object.keys(data.kategorik_analiz).length > 0 && (
+            <div className="card">
+              <div className="card-title">Kategorik Alan Analizi</div>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>
+                    <th style={{ padding: '6px 0', textAlign: 'left' }}>Alan</th>
+                    <th style={{ padding: '6px 0', textAlign: 'right' }}>Unique</th>
+                    <th style={{ padding: '6px 0', textAlign: 'right' }}>En Sık Değer</th>
+                    <th style={{ padding: '6px 0', textAlign: 'right' }}>Adet</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(data.kategorik_analiz).map(([alan, m]) => (
+                    <tr key={alan} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '7px 0', fontSize: 12, fontFamily: 'monospace', color: 'var(--muted)' }}>{alan}</td>
+                      <td style={{ padding: '7px 0', textAlign: 'right', fontWeight: 600 }}>{m.unique_count}</td>
+                      <td style={{ padding: '7px 0', textAlign: 'right', fontFamily: 'monospace', fontSize: 12 }}>{m.most_frequent ?? '—'}</td>
+                      <td style={{ padding: '7px 0', textAlign: 'right' }}>{m.most_frequent_count?.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {}
           {data.son_senkronizasyon && (

@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import { triggerSync } from '../api'
+import { useState, useRef } from 'react'
+import { triggerSync, uploadCSV } from '../api'
 
 const BANKS = ['BANK001', 'BANK002', 'BANK003']
 const TYPES = ['RETAIL', 'COMMERCIAL']
+const KINDS = ['credit', 'payment_plan']
 
 export default function Sync() {
   const [bank,    setBank]    = useState('BANK001')
@@ -10,6 +11,15 @@ export default function Sync() {
   const [loading, setLoading] = useState(false)
   const [result,  setResult]  = useState(null)
   const [error,   setError]   = useState('')
+
+  // Upload state
+  const [uBank,    setUBank]    = useState('BANK001')
+  const [uType,    setUType]    = useState('RETAIL')
+  const [uKind,    setUKind]    = useState('credit')
+  const [uLoading, setULoading] = useState(false)
+  const [uResult,  setUResult]  = useState(null)
+  const [uError,   setUError]   = useState('')
+  const fileRef = useRef(null)
 
   const run = async () => {
     setLoading(true)
@@ -25,11 +35,67 @@ export default function Sync() {
     }
   }
 
+  const upload = async () => {
+    const file = fileRef.current?.files?.[0]
+    if (!file) { setUError('Lütfen bir CSV dosyası seçin.'); return }
+    setULoading(true)
+    setUResult(null)
+    setUError('')
+    try {
+      const data = await uploadCSV(uBank, uType, uKind, file)
+      setUResult(data)
+      fileRef.current.value = ''
+    } catch (err) {
+      if (err.message !== 'UNAUTHORIZED') setUError(err.message || 'Yükleme başarısız.')
+    } finally {
+      setULoading(false)
+    }
+  }
+
   return (
     <div>
       <div className="ph">
         <h2>Veri Senkronizasyonu</h2>
-        <p>Seçilen bankadan kredi verilerini çekip veri ambarına aktarır.</p>
+        <p>CSV yükleme ve senkronizasyon işlemleri.</p>
+      </div>
+
+      {/* ── CSV Upload ── */}
+      <div className="card">
+        <div className="card-title">CSV Yükleme (Banka Simülatörü)</div>
+        <div className="form-row">
+          <div className="form-group">
+            <label className="form-label">Banka</label>
+            <select className="form-select" value={uBank} onChange={e => setUBank(e.target.value)}>
+              {BANKS.map(b => <option key={b}>{b}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Kredi Tipi</label>
+            <select className="form-select" value={uType} onChange={e => setUType(e.target.value)}>
+              {TYPES.map(t => <option key={t}>{t}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Veri Türü</label>
+            <select className="form-select" value={uKind} onChange={e => setUKind(e.target.value)}>
+              {KINDS.map(k => <option key={k}>{k}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">CSV Dosyası</label>
+            <input ref={fileRef} type="file" accept=".csv" className="form-select" style={{ padding: '5px 8px' }} />
+          </div>
+          <button className="btn btn-primary" onClick={upload} disabled={uLoading}>
+            {uLoading ? 'Yükleniyor…' : 'Yükle'}
+          </button>
+        </div>
+        {uError  && <div className="alert alert-error" style={{ marginTop: 10 }}>{uError}</div>}
+        {uResult && (
+          <div className="alert alert-success" style={{ marginTop: 10 }}>
+            Yükleme başarılı — <strong>{uResult.row_count?.toLocaleString()}</strong> satır ·{' '}
+            {uResult.tenant_id} / {uResult.loan_type} / {uResult.data_kind}
+          </div>
+        )}
       </div>
 
       <div className="card">
@@ -57,11 +123,17 @@ export default function Sync() {
 
       {result && (
         <>
-          <div className="alert alert-success">
-            Senkronizasyon tamamlandı —{' '}
-            <strong>{result.kredi?.rows_fetched?.toLocaleString() ?? 0}</strong> kredi,{' '}
-            <strong>{result.odeme_plani?.rows_fetched?.toLocaleString() ?? 0}</strong> ödeme planı satırı işlendi.
-          </div>
+          {result.kredi?.warning ? (
+            <div className="alert alert-error">
+              ⚠️ <strong>Eski veri korundu:</strong> {result.kredi.warning}
+            </div>
+          ) : (
+            <div className="alert alert-success">
+              Senkronizasyon tamamlandı —{' '}
+              <strong>{result.kredi?.rows_fetched?.toLocaleString() ?? 0}</strong> kredi,{' '}
+              <strong>{result.odeme_plani?.rows_fetched?.toLocaleString() ?? 0}</strong> ödeme planı satırı işlendi.
+            </div>
+          )}
 
           {}
           <div className="card-title" style={{ marginBottom: 8, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.5px', color: 'var(--muted)' }}>Kredi Kayıtları</div>
@@ -84,6 +156,15 @@ export default function Sync() {
               <div className="stat-value">{result.kredi?.rows_deleted_before_sync?.toLocaleString() ?? 0}</div>
             </div>
           </div>
+
+          {result.kredi?.ornek_hatalar?.length > 0 && (
+            <div className="card" style={{ borderLeft: '3px solid #ef4444', marginBottom: 16 }}>
+              <div className="card-title" style={{ color: '#ef4444' }}>Örnek Doğrulama Hataları (ilk {result.kredi.ornek_hatalar.length})</div>
+              {result.kredi.ornek_hatalar.map((h, i) => (
+                <div key={i} style={{ fontFamily: 'monospace', fontSize: 12, padding: '3px 0', color: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>{h}</div>
+              ))}
+            </div>
+          )}
 
           {}
           <div className="card-title" style={{ marginBottom: 8, fontSize: 11, textTransform: 'uppercase', letterSpacing: '.5px', color: 'var(--muted)' }}>Ödeme Planları</div>
