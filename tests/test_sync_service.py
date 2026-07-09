@@ -86,8 +86,10 @@ class TestSyncCreditData:
     @patch("apps.loans.services.sync_service.requests.get")
     def test_basarili_sync(self, mock_get):
         mock_get.side_effect = [
-            _bank_yaniti(KREDI_SATIRLARI),
-            _bank_yaniti(PLAN_SATIRLARI),
+            _bank_yaniti(KREDI_SATIRLARI),   # kredi geçiş 1 (doğrulama)
+            _bank_yaniti(KREDI_SATIRLARI),   # kredi geçiş 2 (yazma)
+            _bank_yaniti(PLAN_SATIRLARI),    # plan geçiş 1 (doğrulama)
+            _bank_yaniti(PLAN_SATIRLARI),    # plan geçiş 2 (yazma)
         ]
         from apps.loans.services.sync_service import sync_credit_data
 
@@ -122,8 +124,9 @@ class TestSyncCreditData:
         """
         yabanci_plan = {**PLAN_SATIRLARI[0], "loan_account_number": "LOAN_YABANCI"}
         mock_get.side_effect = [
-            _bank_yaniti(KREDI_SATIRLARI),
-            _bank_yaniti([yabanci_plan]),
+            _bank_yaniti(KREDI_SATIRLARI),   # kredi geçiş 1 (doğrulama)
+            _bank_yaniti(KREDI_SATIRLARI),   # kredi geçiş 2 (yazma)
+            _bank_yaniti([yabanci_plan]),     # plan geçiş 1 (tümü cross-geçersiz, erken dönüş)
         ]
         from apps.loans.services.sync_service import sync_credit_data
 
@@ -137,10 +140,14 @@ class TestSyncCreditData:
     def test_atomik_replacement_eski_veri_silinir(self, mock_get):
         """Sync iki kez çalışınca eski veri silinip yenisi yazılır."""
         mock_get.side_effect = [
-            _bank_yaniti(KREDI_SATIRLARI),
-            _bank_yaniti(PLAN_SATIRLARI),
-            _bank_yaniti(KREDI_SATIRLARI),
-            _bank_yaniti(PLAN_SATIRLARI),
+            _bank_yaniti(KREDI_SATIRLARI),   # 1. sync: kredi geçiş 1
+            _bank_yaniti(KREDI_SATIRLARI),   # 1. sync: kredi geçiş 2
+            _bank_yaniti(PLAN_SATIRLARI),    # 1. sync: plan geçiş 1
+            _bank_yaniti(PLAN_SATIRLARI),    # 1. sync: plan geçiş 2
+            _bank_yaniti(KREDI_SATIRLARI),   # 2. sync: kredi geçiş 1
+            _bank_yaniti(KREDI_SATIRLARI),   # 2. sync: kredi geçiş 2
+            _bank_yaniti(PLAN_SATIRLARI),    # 2. sync: plan geçiş 1
+            _bank_yaniti(PLAN_SATIRLARI),    # 2. sync: plan geçiş 2
         ]
         from apps.loans.services.sync_service import sync_credit_data
 
@@ -170,8 +177,10 @@ class TestSyncCreditData:
     def test_sync_log_tenant_olusturur(self, mock_get):
         """Tenant yoksa otomatik oluşturulur."""
         mock_get.side_effect = [
-            _bank_yaniti(KREDI_SATIRLARI),
-            _bank_yaniti(PLAN_SATIRLARI),
+            _bank_yaniti(KREDI_SATIRLARI),   # kredi geçiş 1
+            _bank_yaniti(KREDI_SATIRLARI),   # kredi geçiş 2
+            _bank_yaniti(PLAN_SATIRLARI),    # plan geçiş 1
+            _bank_yaniti(PLAN_SATIRLARI),    # plan geçiş 2
         ]
         from apps.loans.services.sync_service import sync_credit_data
 
@@ -188,10 +197,12 @@ class TestSyncCreditData:
         """
         hatali_satir = {**KREDI_SATIRLARI[0], "loan_account_number": ""}
         mock_get.side_effect = [
-            # 1. sync: geçerli veri
+            # 1. sync: geçerli veri (iki geçiş)
+            _bank_yaniti(KREDI_SATIRLARI),
             _bank_yaniti(KREDI_SATIRLARI),
             _bank_yaniti(PLAN_SATIRLARI),
-            # 2. sync: tüm satırlar hatalı
+            _bank_yaniti(PLAN_SATIRLARI),
+            # 2. sync: tüm satırlar hatali (kredi: geçiş 1 erken dönüş; plan: rows_fetched=0 erken dönüş)
             _bank_yaniti([hatali_satir]),
             _bank_yaniti([]),
         ]
@@ -215,8 +226,10 @@ class TestSyncCreditData:
         TC-01: BANK001 sync edilince BANK002 verisi etkilenmemeli.
         """
         mock_get.side_effect = [
-            _bank_yaniti(KREDI_SATIRLARI),
-            _bank_yaniti(PLAN_SATIRLARI),
+            _bank_yaniti(KREDI_SATIRLARI),   # kredi geçiş 1
+            _bank_yaniti(KREDI_SATIRLARI),   # kredi geçiş 2
+            _bank_yaniti(PLAN_SATIRLARI),    # plan geçiş 1
+            _bank_yaniti(PLAN_SATIRLARI),    # plan geçiş 2
         ]
         from apps.loans.services.sync_service import sync_credit_data
 
@@ -241,10 +254,12 @@ class TestSyncCreditData:
             for i in range(5)
         ]
         mock_get.side_effect = [
-            _bank_yaniti(satirlar_3),
-            _bank_yaniti([]),
-            _bank_yaniti(satirlar_5),
-            _bank_yaniti([]),
+            _bank_yaniti(satirlar_3),   # 1. sync: kredi geçiş 1
+            _bank_yaniti(satirlar_3),   # 1. sync: kredi geçiş 2
+            _bank_yaniti([]),           # 1. sync: plan (0 satır, erken dönüş)
+            _bank_yaniti(satirlar_5),   # 2. sync: kredi geçiş 1
+            _bank_yaniti(satirlar_5),   # 2. sync: kredi geçiş 2
+            _bank_yaniti([]),           # 2. sync: plan (0 satır, erken dönüş)
         ]
         from apps.loans.services.sync_service import sync_credit_data
 
@@ -270,10 +285,12 @@ class TestSyncCreditData:
             "customer_type": "C",
         }
         mock_get.side_effect = [
-            _bank_yaniti([retail_satir]),
-            _bank_yaniti([]),
-            _bank_yaniti([commercial_satir]),
-            _bank_yaniti([]),
+            _bank_yaniti([retail_satir]),     # RETAIL: kredi geçiş 1
+            _bank_yaniti([retail_satir]),     # RETAIL: kredi geçiş 2
+            _bank_yaniti([]),                 # RETAIL: plan (0 satır, erken dönüş)
+            _bank_yaniti([commercial_satir]), # COMMERCIAL: kredi geçiş 1
+            _bank_yaniti([commercial_satir]), # COMMERCIAL: kredi geçiş 2
+            _bank_yaniti([]),                 # COMMERCIAL: plan (0 satır, erken dönüş)
         ]
         from apps.loans.services.sync_service import sync_credit_data
 

@@ -49,7 +49,7 @@ fn validate_row(py: Python<'_>, row: HashMap<String, String>) -> PyResult<PyObje
             let h = PyDict::new_bound(py);
             h.set_item("alan", alan)?;
             h.set_item("deger", deger)?;
-            h.set_item("sebep", "Geçersiz tarih (YYYYMMDD veya YYYY-MM-DD olmalı)")?;
+            h.set_item("sebep", "Geçersiz tarih (YYYYMMDD, YYYY-MM-DD veya GG.AA.YYYY olmalı)")?;
             hatalar.push(h.into());
         }
     }

@@ -19,12 +19,18 @@ SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-insecure-secret-change-in-pro
 ALGORITHM = os.environ.get("JWT_ALGORITHM", "HS256")
 EXPIRE_MINUTES = int(os.environ.get("JWT_EXPIRE_MINUTES", "60"))
 
+# Format: key:role  VEYA  key:role:TENANT1|TENANT2
+# Örnek: teamsec-dev-key:admin,bank001-key:reader:BANK001
 _raw_keys = os.environ.get("API_KEYS", "teamsec-dev-key:admin")
-API_KEYS: dict[str, str] = {}
+API_KEYS: dict[str, dict] = {}
 for pair in _raw_keys.split(","):
-    if ":" in pair:
-        k, role = pair.strip().split(":", 1)
-        API_KEYS[k.strip()] = role.strip()
+    parts = pair.strip().split(":")
+    if len(parts) >= 2:
+        k = parts[0].strip()
+        role = parts[1].strip()
+        tenants_raw = parts[2].strip() if len(parts) >= 3 else "*"
+        tenants = [t.strip() for t in tenants_raw.split("|")]
+        API_KEYS[k] = {"role": role, "allowed_tenants": tenants}
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
@@ -79,9 +85,14 @@ async def get_current_user(
     """
 
     if api_key:
-        role = API_KEYS.get(api_key)
-        if role:
-            return {"username": f"api_key:{role}", "roles": [role], "auth_method": "api_key"}
+        entry = API_KEYS.get(api_key)
+        if entry:
+            return {
+                "username": f"api_key:{entry['role']}",
+                "roles": [entry['role']],
+                "auth_method": "api_key",
+                "allowed_tenants": entry["allowed_tenants"],
+            }
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Geçersiz API key",

@@ -20,23 +20,20 @@ async def upload_csv(
     data_kind: str,
     file: UploadFile = File(...),
 ):
-    contents = await file.read()
-    text = contents.decode("utf-8")
+    # SpooledTemporaryFile üzerinden doğrudan aktarım — tüm satırlar belleğe yüklenmez
+    text_stream = io.TextIOWrapper(file.file, encoding="utf-8")
+    reader = csv.DictReader(text_stream, delimiter=";")
+    row_count = storage.save_data_streaming(tenant_id, loan_type, data_kind, reader)
 
-    reader = csv.DictReader(io.StringIO(text), delimiter=";")
-    rows = list(reader)
-
-    if not rows:
+    if row_count == 0:
         raise HTTPException(status_code=400, detail="CSV boş veya okunamadı")
-
-    storage.save_data(tenant_id, loan_type, data_kind, rows)
 
     return {
         "message": "yükleme başarılı",
         "tenant_id": tenant_id,
         "loan_type": loan_type,
         "data_kind": data_kind,
-        "row_count": len(rows),
+        "row_count": row_count,
     }
 
 

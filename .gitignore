@@ -18,11 +18,9 @@ venv/
 *.sqlite3
 /data/
 
-# Büyük örnek veri dosyaları
-/sample_data/
-
 # external_bank runtime verisi (seed ile üretilir, git'te olmamalı)
 /external_bank/bank_data/*.json
+/external_bank/bank_data/*.jsonl
 
 # IDE
 .vscode/

@@ -1,53 +1,36 @@
 import json
-import time
 from pathlib import Path
 
 DATA_DIR = Path(__file__).parent / "bank_data"
 DATA_DIR.mkdir(exist_ok=True)
 
-_CACHE: dict[str, dict] = {}
-CACHE_TTL = 600
-
-
-def _cache_get(path: Path) -> list | None:
-    key = str(path)
-    entry = _CACHE.get(key)
-    if not entry:
-        return None
-
-    try:
-        current_mtime = path.stat().st_mtime
-    except FileNotFoundError:
-        return None
-    if entry["mtime"] != current_mtime:
-        del _CACHE[key]
-        return None
-
-    if time.time() - entry["loaded_at"] > CACHE_TTL:
-        del _CACHE[key]
-        return None
-    return entry["rows"]
-
-
-def _cache_set(path: Path, rows: list) -> None:
-    _CACHE[str(path)] = {
-        "rows": rows,
-        "loaded_at": time.time(),
-        "mtime": path.stat().st_mtime,
-    }
-
 
 def _file_path(tenant_id: str, loan_type: str, data_kind: str) -> Path:
-    filename = f"{tenant_id}__{loan_type}__{data_kind}.json"
+    filename = f"{tenant_id}__{loan_type}__{data_kind}.jsonl"
     return DATA_DIR / filename
 
 
 def save_data(tenant_id: str, loan_type: str, data_kind: str, rows: list) -> None:
+    """Her satırı ayrı JSON objesi olarak JSONL formatında yazar."""
     path = _file_path(tenant_id, loan_type, data_kind)
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(rows, f, ensure_ascii=False, indent=2)
+        for row in rows:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
-    _CACHE.pop(str(path), None)
+
+def save_data_streaming(tenant_id: str, loan_type: str, data_kind: str, reader) -> int:
+    """
+    CSV DictReader'dan satırları belleğe yüklemeden doğrudan JSONL olarak diske yazar.
+    Bellek kullanımı: O(1) — her satır işlendikten sonra atılır.
+    Döndürür: yazılan satır sayısı.
+    """
+    path = _file_path(tenant_id, loan_type, data_kind)
+    count = 0
+    with open(path, "w", encoding="utf-8") as f:
+        for row in reader:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+            count += 1
+    return count
 
 
 def load_data(tenant_id: str, loan_type: str, data_kind: str) -> list:
@@ -55,11 +38,12 @@ def load_data(tenant_id: str, loan_type: str, data_kind: str) -> list:
     path = _file_path(tenant_id, loan_type, data_kind)
     if not path.exists():
         return []
-    rows = _cache_get(path)
-    if rows is None:
-        with open(path, "r", encoding="utf-8") as f:
-            rows = json.load(f)
-        _cache_set(path, rows)
+    rows = []
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                rows.append(json.loads(line))
     return rows
 
 
@@ -71,21 +55,25 @@ def load_data_page(
     page_size: int = 5000,
 ) -> tuple[list, int]:
     """
-    Veriyi sayfa sayfa döndürür.
-    JSON dosyası ilk istekte bir kez yüklenir, sonraki sayfa isteklerinde
-    cache'den hızla okunur — büyük dosyalar için kritik.
+    JSONL dosyasını satır satır okuyarak sayfalı veri döndürür.
+    Hiçbir noktada tüm dosya belleğe alınmaz — gerçek streaming.
     """
     path = _file_path(tenant_id, loan_type, data_kind)
     if not path.exists():
         return [], 0
 
-    all_rows = _cache_get(path)
-    if all_rows is None:
-        with open(path, "r", encoding="utf-8") as f:
-            all_rows = json.load(f)
-        _cache_set(path, all_rows)
-
-    total = len(all_rows)
     start = (page - 1) * page_size
     end = start + page_size
-    return all_rows[start:end], total
+
+    rows: list = []
+    total = 0
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            if start <= total < end:
+                rows.append(json.loads(line))
+            total += 1
+
+    return rows, total

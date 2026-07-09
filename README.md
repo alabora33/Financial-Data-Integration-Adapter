@@ -113,6 +113,37 @@ Yükleme mevcut veriyi değiştirir (replace). `data_kind`: `credit` veya `payme
 
 ---
 
+## Multi-Tenant Tasarım
+
+### İzolasyon Katmanları
+
+| Katman | Mekanizma |
+|---|---|
+| **Veri izolasyonu** | Her `CreditRecord` / `PaymentPlan` bir `Tenant` FK'ya bağlı; sorgular her zaman `tenant__bank_code=X` filtresiyle çalışır |
+| **JWT izolasyonu** | `allowed_tenants` alanı; `bank001user` kullanıcısı yalnızca `BANK001` verisine erişebilir |
+| **API Key izolasyonu** | `API_KEYS=key:role:BANK001\|BANK002` formatı; belirtilmezse `*` (tam erişim) |
+| **Dahili servis** | `api/ → adapter/` arası `X-Internal-Token` ile korunur; dışarıya açık değil |
+
+### Tasarım Kararları
+
+- **Tek DB, çok tenant:** Tenant başına ayrı DB yerine tablo bazlı izolasyon tercih edildi — küçük-orta ölçekte yeterli, yönetimi basit.
+- **API Key tenant kısıtı:** `API_KEYS` env değişkeninde `key:role:TENANT1|TENANT2` formatıyla atanır. Tenant belirtilmeyen key'ler varsayılan olarak `*` (tüm bankalar) erişimine sahiptir.
+- **Cross-tenant sızıntı önlemi:** Tüm `/internal/*` endpoint'lerinde `tenant_id` sorgu parametresi zorunludur; eksik parametre `400` döner.
+
+---
+
+## Validation Davranışı
+
+| Senaryo | Sonuç |
+|---|---|
+| Tüm kredi satırları geçersiz | Eski veri **korunur**, sync yazma adımı atlanır |
+| Tüm ödeme planı satırları geçersiz | Eski ödeme planları **korunur**, silme adımı atlanır |
+| Kısmen geçersiz batch | **Geçerli satırlar yazılır**, geçersiz satırlar atlanır ve hata sayısı raporlanır |
+
+Bu tasarım karar olarak seçilmiştir: kısmen geçerli veri tamamen bloklamak yerine en iyi çabayı uygular.
+
+---
+
 ## Multi-Tenant Kullanımı
 
 Sistem BANK001/002/003 gibi birden fazla bankayı izole eder. Yeni banka verisi eklemek için:

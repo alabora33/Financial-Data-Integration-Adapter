@@ -58,23 +58,26 @@ def _fetch_all(bank_code: str, loan_type: str, data_kind: str):
 
 def _sync_credits(tenant, bank_code: str, loan_type: str) -> dict:
     """
-    Kredi kayıtlarını chunk'lar halinde çek → doğrula → normalize → atomik kaydet.
+    Kredi kayıtlarını iki geçişte işler:
+      Geçiş 1: Doğrula ve say — hepsi geçersizse eski veriyi koru, hiç silme.
+      Geçiş 2: Eski veriyi sil, geçerli satırları chunk'lar halinde yaz.
+    Bellek kullanımı: O(CHUNK_SIZE) — hiçbir zaman tek seferde tüm veri belleğe alınmaz.
     """
     validate = CREDIT_VALIDATORS[loan_type]
     normalize = CREDIT_NORMALIZERS[loan_type]
 
+    # Geçiş 1: Doğrulama ve sayım
     rows_fetched = 0
-    gecerli = []
+    gecerli_sayisi = 0
     hatali = 0
-    total = 0
     ornek_hatalar: list[str] = []
 
-    for chunk, total, _ in _fetch_all(bank_code, loan_type, "credit"):
+    for chunk, _, _ in _fetch_all(bank_code, loan_type, "credit"):
         rows_fetched += len(chunk)
         for row in chunk:
             sonuc = validate(row)
             if sonuc.gecerli:
-                gecerli.append(normalize(row))
+                gecerli_sayisi += 1
             else:
                 hatali += 1
                 if len(ornek_hatalar) < 5:
@@ -82,26 +85,33 @@ def _sync_credits(tenant, bank_code: str, loan_type: str) -> dict:
                     for e in sonuc.hatalar[:2]:
                         ornek_hatalar.append(f"{loan_no}: {e.alan} — {e.sebep}")
 
-    if rows_fetched > 0 and len(gecerli) == 0:
-        return {
+    if rows_fetched == 0 or gecerli_sayisi == 0:
+        result: dict = {
             "rows_fetched": rows_fetched,
             "rows_valid": 0,
             "rows_invalid": hatali,
             "rows_deleted": 0,
-            "warning": "Tüm satırlar geçersiz — eski veri korundu",
             "ornek_hatalar": ornek_hatalar[:5],
         }
+        if rows_fetched > 0:
+            result["warning"] = "Tüm satırlar geçersiz — eski veri korundu"
+        return result
 
+    # Geçiş 2: Yazma — eski veriyi sil, geçerli satırları chunk'lar halinde yaz
     with transaction.atomic():
         silinen, _ = CreditRecord.objects.filter(tenant=tenant, loan_type=loan_type).delete()
-        CreditRecord.objects.bulk_create(
-            [CreditRecord(tenant=tenant, loan_type=loan_type, **veri) for veri in gecerli],
-            batch_size=500,
-        )
+        for chunk, _, _ in _fetch_all(bank_code, loan_type, "credit"):
+            batch = [
+                CreditRecord(tenant=tenant, loan_type=loan_type, **normalize(row))
+                for row in chunk
+                if validate(row).gecerli
+            ]
+            if batch:
+                CreditRecord.objects.bulk_create(batch, batch_size=500)
 
     return {
         "rows_fetched": rows_fetched,
-        "rows_valid": len(gecerli),
+        "rows_valid": gecerli_sayisi,
         "rows_invalid": hatali,
         "rows_deleted": silinen,
         "ornek_hatalar": ornek_hatalar[:5],
@@ -110,14 +120,12 @@ def _sync_credits(tenant, bank_code: str, loan_type: str) -> dict:
 
 def _sync_payment_plans(tenant, bank_code: str, loan_type: str) -> dict:
     """
-    Ödeme planlarını chunk'lar halinde işler — memory-efficient.
-    Her chunk bağımsız olarak doğrulanır ve DB'ye yazılır.
-    Cross-file validation: loan_account_number kredi kayıtlarında bulunmalı.
-
+    Ödeme planlarını iki geçişte işler:
+      Geçiş 1: Geçerli plan sayısını hesapla — hepsi geçersizse eski veriyi koru.
+      Geçiş 2: Eski planları sil, geçerli satırları chunk'lar halinde yaz.
     Bellek kullanımı: CHUNK_SIZE × satır_boyutu (~3 MB/chunk)
-    Toplam 269K satır için: ~54 sayfa, hiçbir zaman >3 MB ödeme planı RAM'de
+    Cross-file validation: loan_account_number kredi kayıtlarında bulunmalı.
     """
-
     credit_map = {
         rec.loan_account_number: rec
         for rec in CreditRecord.objects.filter(tenant=tenant, loan_type=loan_type)
@@ -128,29 +136,47 @@ def _sync_payment_plans(tenant, bank_code: str, loan_type: str) -> dict:
     alan_hatali = 0
     capraz_hatali = 0
 
-    with transaction.atomic():
+    # Geçiş 1: Doğrulama ve sayım
+    for chunk, _, _ in _fetch_all(bank_code, loan_type, "payment_plan"):
+        rows_fetched += len(chunk)
+        for row in chunk:
+            if not validate_payment_plan(row).gecerli:
+                alan_hatali += 1
+                continue
+            loan_acc = row.get("loan_account_number", "").strip()
+            if loan_acc not in credit_map:
+                capraz_hatali += 1
+                continue
+            rows_valid += 1
 
+    if rows_fetched == 0 or rows_valid == 0:
+        result: dict = {
+            "rows_fetched": rows_fetched,
+            "rows_valid": 0,
+            "rows_invalid_field": alan_hatali,
+            "rows_invalid_cross": capraz_hatali,
+        }
+        if rows_fetched > 0:
+            result["warning"] = "Tüm ödeme planı satırları geçersiz — eski veri korundu"
+        return result
+
+    # Geçiş 2: Yazma — eski planları sil, geçerli satırları chunk'lar halinde yaz
+    with transaction.atomic():
         PaymentPlan.objects.filter(
             credit__tenant=tenant,
             credit__loan_type=loan_type,
         ).delete()
 
         for chunk, _, _ in _fetch_all(bank_code, loan_type, "payment_plan"):
-            rows_fetched += len(chunk)
             gecerli_planlar = []
 
             for row in chunk:
-
                 if not validate_payment_plan(row).gecerli:
-                    alan_hatali += 1
                     continue
-
                 loan_acc = row.get("loan_account_number", "").strip()
                 credit = credit_map.get(loan_acc)
                 if credit is None:
-                    capraz_hatali += 1
                     continue
-
                 gecerli_planlar.append((credit, normalize_payment_plan(row)))
 
             if gecerli_planlar:
@@ -158,7 +184,6 @@ def _sync_payment_plans(tenant, bank_code: str, loan_type: str) -> dict:
                     [PaymentPlan(credit=credit, **veri) for credit, veri in gecerli_planlar],
                     batch_size=500,
                 )
-                rows_valid += len(gecerli_planlar)
 
     return {
         "rows_fetched": rows_fetched,
@@ -205,17 +230,21 @@ def sync_credit_data(bank_code: str, loan_type: str) -> dict:
         if kredi_sonuc.get("ornek_hatalar"):
             kredi_blok["ornek_hatalar"] = kredi_sonuc["ornek_hatalar"]
 
+        odeme_plani_blok = {
+                "rows_fetched": plan_sonuc["rows_fetched"],
+                "rows_valid": plan_sonuc["rows_valid"],
+                "rows_invalid_field": plan_sonuc["rows_invalid_field"],
+                "rows_invalid_cross": plan_sonuc["rows_invalid_cross"],
+            }
+        if "warning" in plan_sonuc:
+            odeme_plani_blok["warning"] = plan_sonuc["warning"]
+
         return {
             "status": "success",
             "bank_code": bank_code,
             "loan_type": loan_type,
             "kredi": kredi_blok,
-            "odeme_plani": {
-                "rows_fetched": plan_sonuc["rows_fetched"],
-                "rows_valid": plan_sonuc["rows_valid"],
-                "rows_invalid_field": plan_sonuc["rows_invalid_field"],
-                "rows_invalid_cross": plan_sonuc["rows_invalid_cross"],
-            },
+            "odeme_plani": odeme_plani_blok,
         }
 
     except Exception as e:

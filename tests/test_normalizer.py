@@ -25,6 +25,9 @@ class TestParseDate:
     def test_tireli_format(self):
         assert parse_date("2025-03-02") == datetime.date(2025, 3, 2)
 
+    def test_gun_ay_yil_format(self):
+        assert parse_date("02.03.2025") == datetime.date(2025, 3, 2)
+
     def test_bos_string(self):
         assert parse_date("") is None
 

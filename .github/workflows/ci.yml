@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  python-tests:
+    name: Python Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: teamsec_test
+          POSTGRES_USER: teamsec
+          POSTGRES_PASSWORD: teamsec_secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.test_settings
+      POSTGRES_DB: teamsec_test
+      POSTGRES_USER: teamsec
+      POSTGRES_PASSWORD: teamsec_secret
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      INTERNAL_API_TOKEN: ci-test-token
+      JWT_SECRET_KEY: ci-test-jwt-secret
+      BANK_BASE_URL: http://localhost:8001
+      ADAPTER_BASE_URL: http://localhost:8002
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install adapter dependencies
+        working-directory: adapter
+        run: pip install -r requirements.txt
+
+      - name: Install test dependencies
+        working-directory: tests
+        run: pip install -r requirements.txt
+
+      - name: Run migrations
+        working-directory: adapter
+        run: python manage.py migrate --settings=config.test_settings
+
+      - name: Run tests
+        run: python -m pytest tests/ -v --tb=short
+
+  rust-tests:
+    name: Rust Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust_engine/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rust_engine/Cargo.lock') }}
+
+      - name: Run Rust tests
+        working-directory: rust_engine
+        run: cargo test --verbose

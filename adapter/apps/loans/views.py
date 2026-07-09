@@ -139,6 +139,12 @@ def profiling_view(request):
     bos_sigorta = qs.filter(Q(insurance_included="") | Q(insurance_included__isnull=True)).count()
     bos_dis_rating = qs.filter(Q(external_rating="") | Q(external_rating__isnull=True)).count()
     bos_ic_rating = qs.filter(Q(internal_rating="") | Q(internal_rating__isnull=True)).count()
+    bos_customer_id = qs.filter(Q(customer_id="") | Q(customer_id__isnull=True)).count()
+    bos_loan_start_date = qs.filter(loan_start_date__isnull=True).count()
+    bos_final_maturity = qs.filter(final_maturity_date__isnull=True).count()
+    bos_loan_closing = qs.filter(loan_closing_date__isnull=True).count()
+    sifir_faiz = qs.filter(nominal_interest_rate=0).count()
+    sifir_tutar = qs.filter(original_loan_amount=0).count()
 
     durum_dagilim = list(qs.values("loan_status_code").annotate(sayi=Count("id")).order_by("-sayi"))
     if loan_type == "RETAIL":
@@ -192,8 +198,20 @@ def profiling_view(request):
                 "bos_sigorta_alani": bos_sigorta,
                 "bos_dis_rating": bos_dis_rating,
                 "bos_ic_rating": bos_ic_rating,
+                "bos_customer_id": bos_customer_id,
+                "bos_loan_start_date": bos_loan_start_date,
+                "bos_final_maturity_date": bos_final_maturity,
+                "bos_loan_closing_date": bos_loan_closing,
+                "sifir_faiz_orani": sifir_faiz,
+                "sifir_original_tutar": sifir_tutar,
                 "bos_sigorta_oran_pct": round(bos_sigorta / total * 100, 2),
                 "bos_dis_rating_pct": round(bos_dis_rating / total * 100, 2),
+                "bos_ic_rating_pct": round(bos_ic_rating / total * 100, 2),
+                "bos_customer_id_pct": round(bos_customer_id / total * 100, 2),
+                "bos_loan_start_date_pct": round(bos_loan_start_date / total * 100, 2),
+                "bos_final_maturity_pct": round(bos_final_maturity / total * 100, 2),
+                "sifir_faiz_pct": round(sifir_faiz / total * 100, 2),
+                "sifir_tutar_pct": round(sifir_tutar / total * 100, 2),
             },
             "durum_dagilimi": durum_dagilim,
             "sigorta_dagilimi": sigorta_dagilim,
